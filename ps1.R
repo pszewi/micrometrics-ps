@@ -102,9 +102,13 @@ df <- read.csv("files/jtrain2.csv", sep = ";")
 cols <- c("age", "educ", "black", "hisp", "nodegree", "re74", "re75")
 TABLE.1 <- make_table(df, train, cols)
 
+# TODO: COMMENT ON THE TOPIC!
+
 # b)---------------------------------
 
 reg1 <- lm("re78 ~ train", df)
+
+# TODO: INTERPRET THE COEFFICIENT!
 
 # c)---------------------------------
 forms = c("train", "train + age + educ + black + hisp",
@@ -119,6 +123,9 @@ for (i in seq_along(forms)){
 TABLE.2 <- stargazer(
     models.1, type='text'
 )
+
+# TODO: ADD COMMENTS ON THE TOPIC!
+# TODO: CLEANUP THE WORKFLOW HERE IF HAVE FREE TIME
 
 # d)---------------------------------
 
@@ -140,6 +147,7 @@ df_restricted <- df[-c(as.numeric(rownames(smallest_b)), as.numeric(rownames(big
 reg2 = lm("re78 ~ train + age + educ + black + hisp + re74 + re75", df_restricted)
 
 stargazer(reg2, type='text')
+# TODO: ADD COMMENTS ON THE TOPIC!
 
 
 
@@ -190,6 +198,8 @@ df.2 <- df.2 |>
 	rename(treated_2= "treat")
 print(cor.test(df.2$treated, df.2$treated_2))
 
+# TODO: ADD SOME COMMENTS ON SIGNIFICANCE
+
 # d) ---------------------------------
 TABLE.1.3 <- make_table(df.2, treated, cols.2)
 TABLE.1.3 <- TABLE.1.3 |>
@@ -232,4 +242,27 @@ TABLE.2 = stargazer(
     models.1, models.2, models.3, type='text'
 )
 # TODO COMMENT ON FINDINGS!
+
+# ---------------------------------
+# ----------- EXE 3 ---------------
+# ---------------------------------
+
+# a) ------------------------------
+# b) ------------------------------
+
+# ---------------------------------
+# ----------- EXE 4 ---------------
+# ---------------------------------
+
+# a) ------------------------------
+# b) ------------------------------
+
+# ---------------------------------
+# ----------- EXE 5 ---------------
+# ---------------------------------
+
+# a) ------------------------------
+# b) ------------------------------
+# c) ------------------------------
+# d) ------------------------------
 
