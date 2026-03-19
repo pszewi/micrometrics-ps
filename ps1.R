@@ -65,7 +65,7 @@ diff_mean <- function(data, treatment_d) {
 }
 
 # function that creates the table
-make_table <- function(df, treat_col, x_vect){
+make_table1 <- function(df, treat_col, x_vect){
 	initial_table <- df |> 
 	  select({{treat_col}}, x_vect) |>
 	  group_by({{treat_col}}) |>
@@ -92,6 +92,44 @@ make_table <- function(df, treat_col, x_vect){
 	TABLE.1_pivoted
 }
 
+# count controls and treated to be added in the table
+reg_count <- function(model){
+	# first extract treatment var ASSUMMING IT'S FIRST IN THE FORMULA
+	form <- as.character(model$call[2])
+	treat_var <- regmatches(form, regexec("~ (\\w+)",form))[[1]][2]
+
+	# compute counts - assumes 1 treatment group
+	t_count <- sum(model[['model']][treat_var])
+	c_count <- nrow(model[['model']]) - t_count
+	
+	c(t_count, c_count)
+}
+
+# Construct the line vector 
+add_lines <- function(models){
+	counts = list(c("Treated"), c("Control"))
+
+	for(i in seq_along(models)){
+		model_count = reg_count(models[[i]])
+		counts[[1]][[i+1]] = model_count[1]
+		counts[[2]][[i+1]] = model_count[2]
+
+	}
+	counts
+}
+
+# runs a model loop, must pass a vector of formulas, df
+run_models <- function(forms, df){
+
+	models = list()
+	for (i in seq_along(forms)){
+	    reg = lm(as.formula(forms[i]), df)
+			reg$call[[2]] <- as.formula(forms[i])
+	    models[[i]] = reg
+	}
+	models
+}
+
 # --------------------
 # ------EXE 1---------
 # --------------------
@@ -100,7 +138,7 @@ df <- read.csv("files/jtrain2.csv", sep = ";")
 
 # subset for desired columns, make TABLE.1
 cols <- c("age", "educ", "black", "hisp", "nodegree", "re74", "re75")
-TABLE.1 <- make_table(df, train, cols)
+TABLE.1 <- make_table1(df, train, cols)
 
 # TODO: COMMENT ON THE TOPIC!
 
@@ -113,15 +151,13 @@ reg1 <- lm("re78 ~ train", df)
 # c)---------------------------------
 forms = c("train", "train + age + educ + black + hisp",
           "train + age + educ + black + hisp + re74 + re75")
+forms <- paste0("re78 ~ ", forms)
 
-models.1 = list()
-for (i in seq_along(forms)){
-    reg = lm(paste0("re78 ~ ", forms[i]), df)
-    models.1[[i]] = reg
-}
+models.1 <- run_models(forms, df)
 
 TABLE.2 <- stargazer(
-    models.1, type='text'
+    models.1, type='text',
+		add.lines = add_lines(models.1)
 )
 
 # TODO: ADD COMMENTS ON THE TOPIC!
@@ -129,7 +165,7 @@ TABLE.2 <- stargazer(
 
 # d)---------------------------------
 
-influence_train <- data.frame(train = (dfbeta(models[[3]])[, 2]))
+influence_train <- data.frame(train = (dfbeta(models.1[[3]])[, 2]))
 
 # get the 3,5,10th lowest obs
 smallest_b <- influence_train |>
@@ -150,7 +186,6 @@ stargazer(reg2, type='text')
 # TODO: ADD COMMENTS ON THE TOPIC!
 
 
-
 # ------------
 # ---EXE 2----
 # ------------
@@ -163,7 +198,7 @@ df.2 <- read.csv("files/jtrain3.csv", sep = ";")
 cols.2 <- c("age", "educ", "black", "hisp", "re74", "re75")
 
 # make an intermediate table
-TABLE.1.2 <- make_table(df.2, train, cols.2)
+TABLE.1.2 <- make_table1(df.2, train, cols.2)
 TABLE.1.2 <- TABLE.1.2 |>
 	mutate(variable = (paste0(variable, "_2")))
 
@@ -196,12 +231,13 @@ df.2 <- left_join(df.2, assignments$data, by='random_vals')
 df.2 <- df.2 |> 
 	select(!c(strata, missfit)) |>
 	rename(treated_2= "treat")
+
 print(cor.test(df.2$treated, df.2$treated_2))
 
 # TODO: ADD SOME COMMENTS ON SIGNIFICANCE
 
 # d) ---------------------------------
-TABLE.1.3 <- make_table(df.2, treated, cols.2)
+TABLE.1.3 <- make_table1(df.2, treated, cols.2)
 TABLE.1.3 <- TABLE.1.3 |>
 	mutate(variable = (paste0(variable, "_3")))
 
@@ -210,37 +246,34 @@ TABLE.1 <- rbind(TABLE.1, TABLE.1.3)
 # TODO: write the comments!!
 
 # e) ---------------------------------
-forms = c("treated", "treated + age + educ + black + hisp",
+forms.2 = c("treated", "treated + age + educ + black + hisp",
           "treated + age + educ + black + hisp + re74 + re75")
+forms.2 <- paste0("re78 ~ ", forms.2)
 
-models.2 = list()
-for (i in seq_along(forms)){
-    reg = lm(paste0("re78 ~ ", forms[i]), df.2)
-    # print(summary(reg))
-    models.2[[i]] = reg
-}
+models.2 <- run_models(forms.2, df.2)
+models.2 <- c(models.1, models.2)
 
 TABLE.2 = stargazer(
-    models.1, models.2, type='text'
+    models.2, type='text',
+		add.lines = add_lines(models.2)
 )
 
 # TODO COMMENT ON FINDINGS!
 
 # f) ---------------------------------
-forms = c("train", "train + age + educ + black + hisp",
+forms.3 = c("train", "train + age + educ + black + hisp",
           "train + age + educ + black + hisp + re74 + re75")
+forms.3 <- paste0("re78 ~ ", forms.3)
 
-
-models.3 = list()
-for (i in seq_along(forms)){
-    reg = lm(paste0("re78 ~ ", forms[i]), df.2)
-    # print(summary(reg))
-    models.3[[i]] = reg
-}
+models.3 <- run_models(forms.3, df.2)
+models <- c(models.1, models.2, models.3)
 
 TABLE.2 = stargazer(
-    models.1, models.2, models.3, type='text'
+    models, type='text',
+		add.lines = add_lines(models)
 )
+
+
 # TODO COMMENT ON FINDINGS!
 
 # ---------------------------------
