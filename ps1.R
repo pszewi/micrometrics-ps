@@ -38,6 +38,7 @@ library(tidyr)
 library(RCT)
 library(sandwich)
 library(lmtest)
+library(boot)
 
 # ---------------
 # funcs
@@ -124,6 +125,7 @@ add_lines <- function(models){
 }
 
 # runs a model loop, must pass a vector of formulas, df
+# TODO: i have overcomplicated my life by including the vcov arg here, should've just applied it to a list of models post-factum
 run_models <- function(forms, df, vcov='none'){
 
 	models = list()
@@ -134,7 +136,7 @@ run_models <- function(forms, df, vcov='none'){
 	    models[[i]] = reg
 		if(vcov!='none'){
 			# Adjust standard errors
-			se[i] <- sqrt(diag(vcovHC(reg, type = vcov)))
+			se[[i]] <- c(sqrt(diag(vcovHC(reg, type = vcov))))
 		}
 	}
 	list('models'=models, 'standard.errs'=se)
@@ -166,8 +168,8 @@ forms <- paste0("re78 ~ ", forms)
 models.1 <- run_models(forms, df)
 
 TABLE.2 <- stargazer(
-    models.1, type='latex',
-		add.lines = add_lines(models.1)
+    models.1[[1]], type='text',
+		add.lines = add_lines(models.1[[1]])
 )
 
 # TODO: ADD COMMENTS ON THE TOPIC!
@@ -266,8 +268,8 @@ models.2 <- run_models(forms.2, df.2)
 models.2 <- c(models.1, models.2)
 
 TABLE.2 = stargazer(
-    models.2, type='latex',
-		add.lines = add_lines(models.2)
+    models.2[[1]], type='latex',
+		add.lines = add_lines(models.2[[1]])
 )
 
 # TODO COMMENT ON FINDINGS!
@@ -281,8 +283,8 @@ models.3 <- run_models(forms.3, df.2)
 models <- c(models.1, models.2, models.3)
 
 TABLE.2 = stargazer(
-    models, type='latex',
-		add.lines = add_lines(models)
+    models[[1]], type='latex',
+		add.lines = add_lines(models[[1]])
 )
 
 
@@ -369,14 +371,43 @@ print(paste0("The p-val is: ", sum(stat_val>1.79)/n_trials))
 # TODO: READ AND DESCRIBE!!!
 
 # d) ------------------------------
-# forms = c("train", "train + age + educ + black + hisp",
-#           "train + age + educ + black + hisp + re74 + re75")
-# forms <- paste0("re78 ~ ", forms)
-# 
-# models.5[1] <- run_models(forms, df, vcov="HC1")
-# 
-# TABLE.2.5 <- stargazer(
-#     models.5[1], type='text',
-# 		#add.lines = add_lines(models.5[1])
-# 	# TODO - broken function because of object change
-# )
+# 1) --------------------
+# TODO: DESCRIBE HERE 
+
+
+# 2) -------------
+ forms = c("train", "train + age + educ + black + hisp",
+           "train + age + educ + black + hisp + re74 + re75")
+ forms <- paste0("re78 ~ ", forms)
+ 
+ models.5 <- run_models(forms, df, vcov="HC3")
+ 
+ TABLE.2.5 <- stargazer(
+     models.5[[1]], type='text',
+ 		add.lines = add_lines(models.5[[1]]),
+	se = models.5[[2]]
+ )
+
+# 3) -----------
+
+help(boot)
+
+# TODO: slop to be verified and corrected 
+boot_se <- function(model, R = 1000) {
+  data <- model$model  # extract the data used in fitting
+  
+  boot_fn <- function(data, indices) {
+    d <- data[indices, ]
+    coef(lm(formula(model), data = d))
+  }
+  
+  b <- boot(data, boot_fn, R = R)
+  apply(b$t, 2, sd)  # SD of each coefficient across bootstrap samples
+}
+
+se_list <- lapply(models.5[[1]], boot_se)
+tab <- stargazer(models.5, se = se_list, type = "text")
+
+# TODO: DESCRIBE
+# 4) -----------
+# TODO: DESCRIBE
