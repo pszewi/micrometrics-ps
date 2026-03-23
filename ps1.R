@@ -14,8 +14,8 @@ if (user == "erick") {
     filepath <- "/home/erick/TEMP/"
 } else if (user == "Jakub") {
     filepath <- "/FILE/PATH/A/"
-} else if (user == "B") {
-    filepath <- "/FILE/PATH/B/"
+} else if (user == "Nicolò") {
+    filepath <- "/Users/bogiano1945/Desktop/directory ps1/"
 } else if (user == "C") {
     filepath <- "/FILE/PATH/C/"
 } else {    
@@ -36,6 +36,7 @@ library(dplyr)
 library(stargazer)
 library(tidyr)
 library(RCT)
+library(hdm)
 
 # ---------------
 # funcs
@@ -247,7 +248,38 @@ TABLE.2 = stargazer(
 # ----------- EXE 3 ---------------
 # ---------------------------------
 
-# a) ------------------------------
+# a) --------------------------------
+
+# Option A: formula interface
+lasso_y <- rlasso(re78 ~ age + educ + black + hisp + re74 + re75, data=df)
+
+# Extract selected controls = nonzero coefficients (excluding intercept)
+b <- coef(lasso_y)
+selected <- names(b)[b != 0]
+selected <- setdiff(selected, "(Intercept)")
+
+selected
+# This prints the covariates LASSO kept.
+
+# --- Step 2: Post-LASSO OLS of re78 on train + selected controls ---
+rhs <- c("train", selected)
+
+post_formula <- as.formula(
+  paste("re78 ~", paste(rhs, collapse = " + "))
+)
+
+ols_post <- lm(post_formula, data = df)
+
+# Robust (HC1) standard errors (recommended)
+rob_vcov <- vcovHC(ols_post, type = "HC1")
+post_results <- coeftest(ols_post, vcov. = rob_vcov)
+
+post_results
+post_results["train", ]  # coefficient, SE, t, p-value for train
+
+# Optional: also show conventional summary
+summary(ols_post)
+
 # b) ------------------------------
 
 # ---------------------------------

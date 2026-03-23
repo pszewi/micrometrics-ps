@@ -1,3 +1,4 @@
 files/*
 *.pdf
 papers/*
+.Rproj.user
