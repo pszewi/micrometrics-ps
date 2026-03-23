@@ -287,12 +287,42 @@ TABLE.2 = stargazer(
 
 
 # TODO COMMENT ON FINDINGS!
-
-# ---------------------------------
+## ---------------------------------
 # ----------- EXE 3 ---------------
 # ---------------------------------
 
-# a) ------------------------------
+# a) --------------------------------
+
+# Option A: formula interface
+lasso_y <- rlasso(re78 ~ age + educ + black + hisp + re74 + re75, data=df)
+
+# Extract selected controls = nonzero coefficients (excluding intercept)
+b <- coef(lasso_y)
+selected <- names(b)[b != 0]
+selected <- setdiff(selected, "(Intercept)")
+
+selected
+# This prints the covariates LASSO kept.
+
+# --- Step 2: Post-LASSO OLS of re78 on train + selected controls ---
+rhs <- c("train", selected)
+
+post_formula <- as.formula(
+  paste("re78 ~", paste(rhs, collapse = " + "))
+)
+
+ols_post <- lm(post_formula, data = df)
+
+# Robust (HC1) standard errors (recommended)
+rob_vcov <- vcovHC(ols_post, type = "HC1")
+post_results <- coeftest(ols_post, vcov. = rob_vcov)
+
+post_results
+post_results["train", ]  # coefficient, SE, t, p-value for train
+
+# Optional: also show conventional summary
+summary(ols_post)
+
 # b) ------------------------------
 
 # ---------------------------------
@@ -350,5 +380,3 @@ print(paste0("The p-val is: ", sum(stat_val>1.79)/n_trials))
 # 		#add.lines = add_lines(models.5[1])
 # 	# TODO - broken function because of object change
 # )
-
-
