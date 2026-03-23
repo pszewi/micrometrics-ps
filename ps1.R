@@ -12,7 +12,7 @@ print(user)
 # Define file path conditionally
 if (user == "erick") {
     filepath <- "/home/erick/TEMP/"
-} else if (user == "Jakub") {
+} else if (user == "pszewi") {
     filepath <- "/FILE/PATH/A/"
 } else if (user == "B") {
     filepath <- "/FILE/PATH/B/"
@@ -36,6 +36,8 @@ library(dplyr)
 library(stargazer)
 library(tidyr)
 library(RCT)
+library(sandwich)
+library(lmtest)
 
 # ---------------
 # funcs
@@ -43,6 +45,8 @@ library(RCT)
 
 # function that calculates the difference in means between groups
 diff_mean <- function(data, treatment_d) {
+		#this function needs re-writing but one should pass the parameters as 
+		# df[cols] and df$treatment_d (i hate tidyverse syntax)
     treated <- filter(data, {{treatment_d}}==1)
     untreated <- filter(data, {{treatment_d}}==0)
     
@@ -51,7 +55,8 @@ diff_mean <- function(data, treatment_d) {
     mean_diff <- test$estimate[1] - test$estimate[2]
     std_err <- test$stderr
     
-    
+    # assigns the results to a 2x2 dataframe, because will be needed for the proper functioning of the table
+		# TODO: would be nice to turn it off also for casual use
     rtrn <- data.frame(
         mean_diff = rep(mean_diff, 2),
         std_err = rep(std_err, 2)
@@ -119,15 +124,20 @@ add_lines <- function(models){
 }
 
 # runs a model loop, must pass a vector of formulas, df
-run_models <- function(forms, df){
+run_models <- function(forms, df, vcov='none'){
 
 	models = list()
+	se = list()
 	for (i in seq_along(forms)){
 	    reg = lm(as.formula(forms[i]), df)
 			reg$call[[2]] <- as.formula(forms[i])
 	    models[[i]] = reg
+		if(vcov!='none'){
+			# Adjust standard errors
+			se[i] <- sqrt(diag(vcovHC(reg, type = vcov)))
+		}
 	}
-	models
+	list('models'=models, 'standard.errs'=se)
 }
 
 # --------------------
@@ -156,7 +166,7 @@ forms <- paste0("re78 ~ ", forms)
 models.1 <- run_models(forms, df)
 
 TABLE.2 <- stargazer(
-    models.1, type='text',
+    models.1, type='latex',
 		add.lines = add_lines(models.1)
 )
 
@@ -182,7 +192,7 @@ df_restricted <- df[-c(as.numeric(rownames(smallest_b)), as.numeric(rownames(big
 
 reg2 = lm("re78 ~ train + age + educ + black + hisp + re74 + re75", df_restricted)
 
-stargazer(reg2, type='text')
+stargazer(reg2, type='latex')
 # TODO: ADD COMMENTS ON THE TOPIC!
 
 
@@ -203,7 +213,6 @@ TABLE.1.2 <- TABLE.1.2 |>
 	mutate(variable = (paste0(variable, "_2")))
 
 TABLE.1 <- rbind(TABLE.1, TABLE.1.2)
-
 # b)---------------------------------
 
 set.seed(12345)
@@ -241,8 +250,11 @@ TABLE.1.3 <- make_table1(df.2, treated, cols.2)
 TABLE.1.3 <- TABLE.1.3 |>
 	mutate(variable = (paste0(variable, "_3")))
 
-TABLE.1 <- rbind(TABLE.1, TABLE.1.3)
+TABLE.1 <- rbind(TABLE.1, TABLE.1.3)  |>
+	mutate_if(is.numeric, round, 3)
 
+# final moment when printing the table in latex
+stargazer(TABLE.1, type='latex', summary=FALSE, digits = 1)
 # TODO: write the comments!!
 
 # e) ---------------------------------
@@ -254,7 +266,7 @@ models.2 <- run_models(forms.2, df.2)
 models.2 <- c(models.1, models.2)
 
 TABLE.2 = stargazer(
-    models.2, type='text',
+    models.2, type='latex',
 		add.lines = add_lines(models.2)
 )
 
@@ -269,7 +281,7 @@ models.3 <- run_models(forms.3, df.2)
 models <- c(models.1, models.2, models.3)
 
 TABLE.2 = stargazer(
-    models, type='text',
+    models, type='latex',
 		add.lines = add_lines(models)
 )
 
@@ -295,7 +307,48 @@ TABLE.2 = stargazer(
 # ---------------------------------
 
 # a) ------------------------------
+# Answer yet to be found
+
 # b) ------------------------------
+# TODO: Describe Fischer's inference:
+
+# first going to get that post-treatment difference
+
+diff_p_val <- diff_mean(data=df['re78'], treatment_d =df$train)
+
+print(paste0("The mean difference is in fact: ", round(diff_p_val[1,1], 2)))
+
+# makes a vector of 1s and 0s 
+# WARNING: The paper references 240 control individuals but there is actually 260 in our dataset!!!!
+tc <- c(rep(1, 185), rep(0, 260))
+n_trials <- 10^5
+
+stat_val <- vector(mode="numeric", n_trials)
+for(i in c(1:n_trials)){
+	stat_val[i] <- diff_mean(df['re78'], sample(tc))[1,1]
+
+}
+
+print(paste0("The p-val is: ", sum(stat_val>1.79)/n_trials))
+# Therefore, we do not arrive at the same p-value
+
+# TODO: Describe the findings!!!!
+
 # c) ------------------------------
+
+# TODO: READ AND DESCRIBE!!!
+
 # d) ------------------------------
+# forms = c("train", "train + age + educ + black + hisp",
+#           "train + age + educ + black + hisp + re74 + re75")
+# forms <- paste0("re78 ~ ", forms)
+# 
+# models.5[1] <- run_models(forms, df, vcov="HC1")
+# 
+# TABLE.2.5 <- stargazer(
+#     models.5[1], type='text',
+# 		#add.lines = add_lines(models.5[1])
+# 	# TODO - broken function because of object change
+# )
+
 
