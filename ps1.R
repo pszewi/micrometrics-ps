@@ -32,6 +32,14 @@ print(paste("File path set to:", filepath))
 # ----------------
 # imports
 # ---------------
+
+# for ritest package uncomment and run this line:
+# install.packages(
+#   "ritest",
+#   repos = c("https://grantmcdermott.r-universe.dev", "https://cloud.r-project.org")
+# )
+
+
 library(dplyr)
 library(stargazer)
 library(tidyr)
@@ -39,6 +47,8 @@ library(RCT)
 library(sandwich)
 library(lmtest)
 library(boot)
+library(hdm)
+library(ritest)
 
 # ---------------
 # funcs
@@ -152,13 +162,17 @@ df <- read.csv("files/jtrain2.csv", sep = ";")
 cols <- c("age", "educ", "black", "hisp", "nodegree", "re74", "re75")
 TABLE.1 <- make_table1(df, train, cols)
 
-# TODO: COMMENT ON THE TOPIC!
+# From the table it can be seen that the covariates "nodegree" and "hisp" are significant (with "hisp" being significant at 10%, and "nodegree" at 5%)
+# The fact that most variables are well balanced is to be expected, as this data comes from a randomly assigned experiment. 
+# The lack of balance on "nodegree" and "hisp" may stem from the restriction of the sample, as "hisp" was balanced in the original sample, 
+# The case was the same for the "nodgree" variable.
 
 # b)---------------------------------
 
 reg1 <- lm("re78 ~ train", df)
 
-# TODO: INTERPRET THE COEFFICIENT!
+# The coefficient on train essentially gives us the mean difference of re78 between the treatment and control group. 
+# Being positive, it could be interpreted that attaining treatment may have a positive effect on real earnings during 1978 measured i 1982's 1000USD, i.e. being treated is correlated with earning 1793USD more in 1978 (measured in 1982).
 
 # c)---------------------------------
 forms = c("train", "train + age + educ + black + hisp",
@@ -172,12 +186,14 @@ TABLE.2 <- stargazer(
 		add.lines = add_lines(models.1[[1]])
 )
 
-# TODO: ADD COMMENTS ON THE TOPIC!
-# TODO: CLEANUP THE WORKFLOW HERE IF HAVE FREE TIME
+# After introducing the variables educ and black the coefficient on treatment becomes smaller, by about ~0.11 (~$110 in real earnings).
+# Therefore, it may be argued that the results are sensitive to important covariates, but since the effect is fairly small
+# and the coefficient changes very slightly at the introduction of additional covariates, it appears that generally it is not.
+
 
 # d)---------------------------------
 
-influence_train <- data.frame(train = (dfbeta(models.1[[3]])[, 2]))
+influence_train <- data.frame(train = (dfbeta(models.1[[1]][[3]])[, 2]))
 
 # get the 3,5,10th lowest obs
 smallest_b <- influence_train |>
@@ -194,15 +210,15 @@ df_restricted <- df[-c(as.numeric(rownames(smallest_b)), as.numeric(rownames(big
 
 reg2 = lm("re78 ~ train + age + educ + black + hisp + re74 + re75", df_restricted)
 
-stargazer(reg2, type='latex')
-# TODO: ADD COMMENTS ON THE TOPIC!
+stargazer(reg2, type='text')
+
+# Yes, it appears that a relatively large part of the effect is driven by observations at the ends of the distribution, as the coefficient shrinks by another ~0.18 ($180) and thus (~0.26 in total)
 
 
 # ------------
 # ---EXE 2----
 # ------------
 df.2 <- read.csv("files/jtrain3.csv", sep = ";")
-# View(df)
 
 # a)---------------------------------
 
@@ -219,6 +235,7 @@ TABLE.1 <- rbind(TABLE.1, TABLE.1.2)
 
 set.seed(12345)
 
+# function that randomly allocates treatment 
 random_alloc <- function(df, col_name){
 	vals <- rnorm(n=nrow(df))
 	df["random_vals"] <- vals
@@ -244,8 +261,7 @@ df.2 <- df.2 |>
 	rename(treated_2= "treat")
 
 print(cor.test(df.2$treated, df.2$treated_2))
-
-# TODO: ADD SOME COMMENTS ON SIGNIFICANCE
+# As one can see,the correlation is not significant, as both of the treatment variables were assigned randomly. 
 
 # d) ---------------------------------
 TABLE.1.3 <- make_table1(df.2, treated, cols.2)
@@ -255,9 +271,14 @@ TABLE.1.3 <- TABLE.1.3 |>
 TABLE.1 <- rbind(TABLE.1, TABLE.1.3)  |>
 	mutate_if(is.numeric, round, 3)
 
-# final moment when printing the table in latex
-stargazer(TABLE.1, type='latex', summary=FALSE, digits = 1)
-# TODO: write the comments!!
+stargazer(TABLE.1, type='text', summary=FALSE, digits = 1)
+
+# Now, the table shows three versions of the variables - the initial ones, 
+# the jtrain3 (with subscript _2) and the re-randomized variables (_3)
+# One can see that the variables from group _2 are significant, with only hisp_2 not being significant
+# This is surely because of the use of the non-experimental control units in the sample
+# The variables from group _3 were re-randomized and therefore nothing is significant.
+
 
 # e) ---------------------------------
 forms.2 = c("treated", "treated + age + educ + black + hisp",
@@ -265,14 +286,16 @@ forms.2 = c("treated", "treated + age + educ + black + hisp",
 forms.2 <- paste0("re78 ~ ", forms.2)
 
 models.2 <- run_models(forms.2, df.2)
-models.2 <- c(models.1, models.2)
+models.2 <- mapply(c, models.1, models.2)
 
 TABLE.2 = stargazer(
-    models.2[[1]], type='latex',
+    models.2[[1]], type='text',
 		add.lines = add_lines(models.2[[1]])
 )
 
-# TODO COMMENT ON FINDINGS!
+# This is not a very unexpected result given that in here we re-randomized the data with individuals that actually did not receive treatment. 
+# Therefore, the coefficient shrinks as after the re-randomization, the new treatment group has not experienced the effect of treatment (as they did not receive it)
+
 
 # f) ---------------------------------
 forms.3 = c("train", "train + age + educ + black + hisp",
@@ -280,15 +303,18 @@ forms.3 = c("train", "train + age + educ + black + hisp",
 forms.3 <- paste0("re78 ~ ", forms.3)
 
 models.3 <- run_models(forms.3, df.2)
-models <- c(models.1, models.2, models.3)
+models.3 <- mapply(c, models.2, models.3)
 
 TABLE.2 = stargazer(
-    models[[1]], type='latex',
-		add.lines = add_lines(models[[1]])
+    models.3[[1]], type='text',
+		add.lines = add_lines(models.3[[1]])
 )
 
+# This is a regression using the original treatment assignment and the non-experimental group
+# At first the coefficient appears to be strongly negative, but as we add covariates it tends to 0, which is understandable.
+# This is an understandable result, because the people in the control group may come from different backgrounds and have different characteristics. 
+# Only after controlling for the other variables we may be attaining a "comparable" group, with similar covariates.
 
-# TODO COMMENT ON FINDINGS!
 ## ---------------------------------
 # ----------- EXE 3 ---------------
 # ---------------------------------
@@ -339,60 +365,81 @@ summary(ols_post)
 # ---------------------------------
 
 # a) ------------------------------
-# Answer yet to be found
+
+# Neyman's estimator is generally unbiased in finite sample, however, it's variance is biased, when there is heterogeneity in treatment effects.
+
+# If we assume that treatment heterogeneity exist, the bias disappears only when we have that our sample is a random sample from an infinite population (so a classic random sampling assumption). 
+
 
 # b) ------------------------------
-# TODO: Describe Fischer's inference:
+# Fischer's inference is interested in testing null hypotheses under which we can infer all of the potential outcomes from observed ones. 
+# It takes as the null hypothesis that for all units, the potential outcomes are equal to each other. 
+# This procedure then relies on a choice of a proper test statistic. As an example, the authors choose the difference in means by treatment status.
+# After choosing the test statistic, it is computed. Then, they calculate a p-value as the probability of observing a higher test statistic value given a randomly re-assigned treatment (but keeping proportions of treated and control equal in the sample).
+# This is done by randomly reassinging treatment to units and computing the difference in means for a large number of runs. Then, the null hypothesis is rejected if the p-value (the fraction of test statistics with larger value within all runs) is small enough. 
 
-# first going to get that post-treatment difference
+# we run ritest with a reg model because it supports only those types of objects,
+# thankfully regressing the variable on the treatment and a constant gives us a difference in means
 
-diff_p_val <- diff_mean(data=df['re78'], treatment_d =df$train)
+ritest(lm("re78 ~ train", df), "train", reps=1000000, seed=123456)
 
-print(paste0("The mean difference is in fact: ", round(diff_p_val[1,1], 2)))
-
-# makes a vector of 1s and 0s 
-# WARNING: The paper references 240 control individuals but there is actually 260 in our dataset!!!!
-tc <- c(rep(1, 185), rep(0, 260))
-n_trials <- 10^5
-
-stat_val <- vector(mode="numeric", n_trials)
-for(i in c(1:n_trials)){
-	stat_val[i] <- diff_mean(df['re78'], sample(tc))[1,1]
-
-}
-
-print(paste0("The p-val is: ", sum(stat_val>1.79)/n_trials))
-# Therefore, we do not arrive at the same p-value
-
-# TODO: Describe the findings!!!!
+# By using a sufficiently high value of repetitions we arrive at a similar p-value as the authors.
 
 # c) ------------------------------
 
-# TODO: READ AND DESCRIBE!!!
+# The approach of the authors could be criticized for the lack of use of the covariates (something that is rectified later). This approach assumes that the individuals do not differ within the sample. 
+# However, in the original article there exist small differences in the sample and accounting for them by the use of stratification for these covariates (maybe not all but at least gender/education) could make sure that the sample is randomized properly.
 
 # d) ------------------------------
-# 1) --------------------
-# TODO: DESCRIBE HERE 
 
+
+# 1) --------------------
+
+# Briefly, HC1 simply re-weighs the variance-covariance matrix of the regression using a n/n-k term.
+
+# HC3 errors actually re-weigh the diagonal of the v-cov matrix using residual matrix M_[] in order to balance out the importance of errors which values may be correlated with variables and may be larger compared to the others.
 
 # 2) -------------
+
+
  forms = c("train", "train + age + educ + black + hisp",
            "train + age + educ + black + hisp + re74 + re75")
  forms <- paste0("re78 ~ ", forms)
  
  models.5 <- run_models(forms, df, vcov="HC3")
  
- TABLE.2.5 <- stargazer(
+ TABLE.HC3 <- stargazer(
      models.5[[1]], type='text',
  		add.lines = add_lines(models.5[[1]]),
 	se = models.5[[2]]
  )
 
+# computing the dfbeta
+influence_train <- data.frame(train = (dfbeta(models.5[[1]][[3]])[, 2]))
+
+# get the 3,5,10th lowest obs
+smallest_b <- influence_train |>
+  arrange(train) |>
+  head(10) |>
+  slice(c(3,5,10))
+
+biggest_b <- influence_train |>
+  arrange(desc(train)) |>
+  head(10) |>
+  slice(c(3,5,10))
+
+df_restricted <- df[-c(as.numeric(rownames(smallest_b)), as.numeric(rownames(biggest_b))),]
+
+reg5 = lm("re78 ~ train + age + educ + black + hisp + re74 + re75", df_restricted)
+
+TABLE.HC3.INFL <- stargazer(reg5, se=list(c(sqrt(diag(vcovHC(reg5, type = "HC3"))))),  type='text')
+
+
+
 # 3) -----------
 
-help(boot)
 
-# TODO: slop to be verified and corrected 
+# bootstrapping function
 boot_se <- function(model, R = 1000) {
   data <- model$model  # extract the data used in fitting
   
@@ -406,8 +453,17 @@ boot_se <- function(model, R = 1000) {
 }
 
 se_list <- lapply(models.5[[1]], boot_se)
-tab <- stargazer(models.5, se = se_list, type = "text")
+TABLE.BOOT <- stargazer(models.5[[1]], se = se_list, type = "text")
 
-# TODO: DESCRIBE
+TABLE.BOOT.INFL <- stargazer(reg5, se = list(boot_se(reg5)), type = "text")
+
+# Bootstrapping standard errors relies on repeatedly re-sampling the sample (with replacement, many times)
+# Then re-running the model many times, in order to see how the coefficient changes
+# Then we construct the standard error from the variation in the computed coefficient.
+
 # 4) -----------
-# TODO: DESCRIBE
+
+# While the standard errors in the case of the HC3 errors and the bootstrapped errors are larger (as expected)
+# The conclusions within our model do not change given that the significance of coefficients does not change
+# between different error sets
+#TODO : RELATE TO DATACOLADA
