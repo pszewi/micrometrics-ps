@@ -33,31 +33,36 @@ print(paste("File path set to:", filepath))
 # imports
 # ---------------
 
-# for ritest package uncomment and run this line:
-# install.packages(
-#   "ritest",
-#   repos = c("https://grantmcdermott.r-universe.dev", "https://cloud.r-project.org")
-# )
+# installing and importing libraries as needed 
+cran_packages <- c("dplyr", "stargazer", "tidyr", "RCT", "sandwich",
+                   "lmtest", "boot", "hdm", "writexl", "grf",
+                   "ggplot2", "modelsummary")
 
+for (pkg in cran_packages) {
+  if (!require(pkg, character.only = TRUE)) {
+    install.packages(pkg)
+    library(pkg, character.only = TRUE)
+  }
+}
 
-library(dplyr)
-library(stargazer)
-library(tidyr)
-library(RCT)
-library(sandwich)
-library(lmtest)
-library(boot)
-library(hdm)
-library(ritest)
-
+# ritest (not on CRAN)
+if (!require("ritest")) {
+  install.packages("ritest",
+    repos = c("https://grantmcdermott.r-universe.dev",
+              "https://cloud.r-project.org"))
+  library(ritest)
+}
 # ---------------
 # funcs
 # ---------------
 
 # function that calculates the difference in means between groups
+# In retrospect I should have used modelsummary when writing this, 
+# however I at the time i didn't remember its existence
+
 diff_mean <- function(data, treatment_d) {
 		#this function needs re-writing but one should pass the parameters as 
-		# df[cols] and df$treatment_d (i hate tidyverse syntax)
+		# df[cols] and df$treatment_d
     treated <- filter(data, {{treatment_d}}==1)
     untreated <- filter(data, {{treatment_d}}==0)
     
@@ -67,7 +72,6 @@ diff_mean <- function(data, treatment_d) {
     std_err <- test$stderr
     
     # assigns the results to a 2x2 dataframe, because will be needed for the proper functioning of the table
-		# TODO: would be nice to turn it off also for casual use
     rtrn <- data.frame(
         mean_diff = rep(mean_diff, 2),
         std_err = rep(std_err, 2)
@@ -135,7 +139,6 @@ add_lines <- function(models){
 }
 
 # runs a model loop, must pass a vector of formulas, df
-# TODO: i have overcomplicated my life by including the vcov arg here, should've just applied it to a list of models post-factum
 run_models <- function(forms, df, vcov='none'){
 
 	models = list()
@@ -182,8 +185,10 @@ forms <- paste0("re78 ~ ", forms)
 models.1 <- run_models(forms, df)
 
 TABLE.2 <- stargazer(
-    models.1[[1]], type='text',
-		add.lines = add_lines(models.1[[1]])
+    models.1[[1]], type='latex',
+		add.lines = add_lines(models.1[[1]]),
+	out='output/TABLE2-1.tex',
+	title="Table with models for exercise 1.c) (TABLE.2)"
 )
 
 # After introducing the variables educ and black the coefficient on treatment becomes smaller, by about ~0.11 (~$110 in real earnings).
@@ -210,7 +215,9 @@ df_restricted <- df[-c(as.numeric(rownames(smallest_b)), as.numeric(rownames(big
 
 reg2 = lm("re78 ~ train + age + educ + black + hisp + re74 + re75", df_restricted)
 
-stargazer(reg2, type='text')
+TABLEINFL <- stargazer(reg2, type='latex', out='output/TABLEINFL.tex',
+	title='Table for exercise 1.d)',
+	notes="Table showing a regression excluding the 3rd, 5th, and 10th observations with the smallest and the largest influence")
 
 # Yes, it appears that a relatively large part of the effect is driven by observations at the ends of the distribution, as the coefficient shrinks by another ~0.18 ($180) and thus (~0.26 in total)
 
@@ -273,7 +280,11 @@ TABLE.1.3 <- TABLE.1.3 |>
 TABLE.1 <- rbind(TABLE.1, TABLE.1.3)  |>
 	mutate_if(is.numeric, round, 3)
 
-stargazer(TABLE.1, type='text', summary=FALSE, digits = 1)
+stargazer(TABLE.1, type='latex', summary=FALSE, digits = 1, out="output/TABLE1.tex",
+title="Table for exercise 2.d) (TABLE.1-2)",
+notes="\\parbox{17cm}{\\textit{Notes:} This table containt the means, standard deviations and a difference of means for chosen variables. The subscript ``\\_2'' shows values for data from jtrain3. Subscript ``\\_3'' shows re-randomized data from exercise 2.b).}",
+covariate.labels = c("Variable", "Diff. in Means", "Std.Err.", "Mean (Control)", "Mean (Treated)", "SD (Control)", "SD (Treated)"),
+rownames=FALSE) 
 
 # Now, the table shows three versions of the variables - the initial ones, 
 # the jtrain3 (with subscript _2) and the re-randomized variables (_3)
@@ -291,8 +302,11 @@ models.2 <- run_models(forms.2, df.2)
 models.2 <- mapply(c, models.1, models.2)
 
 TABLE.2 = stargazer(
-    models.2[[1]], type='text',
-		add.lines = add_lines(models.2[[1]])
+    models.2[[1]], type='latex',
+		add.lines = add_lines(models.2[[1]]),
+	out='output/TABLE2-2.tex',
+	omit.stat = c("f", "ser"),
+	title="Table showing model results for exercise 2.e) (TABLE.2-2)"
 )
 
 # This is not a very unexpected result given that in here we re-randomized the data with individuals that actually did not receive treatment. 
@@ -308,8 +322,11 @@ models.3 <- run_models(forms.3, df.2)
 models.3 <- mapply(c, models.2, models.3)
 
 TABLE.2 = stargazer(
-    models.3[[1]], type='text',
-		add.lines = add_lines(models.3[[1]])
+    models.3[[1]], type='latex',
+		add.lines = add_lines(models.3[[1]]),
+	out='output/TABLE2-3.tex',
+	omit.stat = c("f", "ser"),
+	title="Table showing model results for exercise 2.f) (TABLE2-3)"
 )
 
 # This is a regression using the original treatment assignment and the non-experimental group
@@ -358,14 +375,7 @@ summary(ols_post)
 # ---------------------------------
 # ----------- EXE 4 ---------------
 # ---------------------------------
-
-library(writexl)
-library(grf)
-library(stargazer)
-library(ggplot2)
-library(dplyr)
-library(modelsummary)
-library(sandwich)
+jtrain3 = df.2
 
 # a1) 
 logit_model <- glm(train ~ age + educ + black + hisp + re74,
@@ -389,7 +399,7 @@ psummary <- jtrain3 %>%
 print(psummary)
 
 #excel table
-write_xlsx(psummary, "pset1_q4a1_logit_summary.xlsx")
+write_xlsx(psummary, "output/pset1_q4a1_logit_summary.xlsx")
 
 #latex table
 psummary_latex <- psummary %>%
@@ -413,10 +423,37 @@ psummary_latex <- psummary %>%
 
 datasummary_df(
   psummary_latex,
-  output = "pset1_q4a1_logit_summary.tex",
+  output = "output/pset1_q4a1_logit_summary.tex",
   title = "Summary statistics of estimated propensity scores (Logit)"
 )
 #end of latex table.
+
+# making the graph with log odds instead to properly show the 
+# distribution. Both distributions were normalized to one 
+jtrain3$logit_odds <- log(jtrain3$ps_logit / (1 - jtrain3$ps_logit))
+plot_logit <- data.frame(
+  pscore = jtrain3$logit_odds,
+  group  = factor(jtrain3$train, labels = c("Treated", "Control"))
+)
+
+ggplot(plot_logit, aes(x = pscore, fill = group)) +
+  geom_density(aes(y = after_stat(scaled)), alpha = 0.4, color = NA) +
+  scale_fill_manual(values = c("Treated" = "#E63946", "Control" = "#457B9D")) +
+  labs(
+    x = "Log Odds of Propensity Score",
+    y = "Scaled Density",
+    fill = NULL,
+    title = "Logit Overlap: Treated vs. Control"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position = "top",
+    plot.title = element_text(hjust = 0.5),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank()
+  )
+
+ggsave("output/logit.png")
 
 #a2)
 X_mat <- as.matrix(jtrain3[, c("age", "educ", "black", "hisp", "re74")])
@@ -447,7 +484,7 @@ psummary_rf <- jtrain3 %>%
 print(psummary_rf)
 
 #excel table
-write_xlsx(psummary_rf, "pset1_q4a2_rf_summary.xlsx")
+write_xlsx(psummary_rf, "output/pset1_q4a2_rf_summary.xlsx")
 
 #latex table
 psummary_rf_latex <- psummary_rf %>%
@@ -471,10 +508,37 @@ psummary_rf_latex <- psummary_rf %>%
 
 datasummary_df(
   psummary_rf_latex,
-  output = "pset1_q4a2_rf_summary.tex",
+  output = "output/pset1_q4a2_rf_summary.tex",
   title = "Summary statistics of estimated propensity scores (Random Forest)"
 )
 #end of latex table.
+
+# making the graph
+
+jtrain3$rf_odds <- log(jtrain3$ps_rf / (1 - jtrain3$ps_rf))
+plot_rf <- data.frame(
+  pscore = jtrain3$rf_odds,
+  group  = factor(jtrain3$train, labels = c("Treated", "Control"))
+)
+
+ggplot(plot_rf, aes(x = pscore, fill = group)) +
+  geom_density(aes(y = after_stat(scaled)), alpha = 0.4, color = NA) +
+  scale_fill_manual(values = c("Treated" = "#E63946", "Control" = "#457B9D")) +
+  labs(
+    x = "Log Odds of Propensity Score",
+    y = "Scaled Density",
+    fill = NULL,
+    title = "Random Forest Overlap: Treated vs. Control"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position = "top",
+    plot.title = element_text(hjust = 0.5),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank()
+  )
+
+ggsave("output/rf.png")
 
 
 ##### TA way of getting the summary statistics:
@@ -524,7 +588,7 @@ cat("\n--- Covariate Means: Trimmed Treated vs Kept Treated ---\n")
 print(comparison_table)
 
 #excel table
-write_xlsx(comparison_table, "pset1_q4a3_comparison_table.xlsx")
+write_xlsx(comparison_table, "output/pset1_q4a3_comparison_table.xlsx")
 
 #latex table
 comparison_table_latex <- comparison_table %>%
@@ -542,7 +606,7 @@ comparison_table_latex <- comparison_table %>%
 
 datasummary_df(
   comparison_table_latex,
-  output = "pset1_q4a3_comparison_table.tex",
+  output = "output/pset1_q4a3_comparison_table.tex",
   title = "Covariate means: trimmed treated vs kept treated"
 )
 #end of latex table. 
@@ -602,7 +666,7 @@ modelsummary(
   statistic = "({std.error})",         # SEs in parentheses
   coef_map = coef_map,
   gof_omit = "AIC|BIC|Log.Lik|RMSE|F",  # keep table cleaner
-  output = "table3.tex"
+  output = "output/TABLE3.tex"
 )
 # b) ------------------------------
 
@@ -655,9 +719,12 @@ ritest(lm("re78 ~ train", df), "train", reps=1000000, seed=123456)
  models.5 <- run_models(forms, df, vcov="HC3")
  
  TABLE.HC3 <- stargazer(
-     models.5[[1]], type='text',
+     models.5[[1]], type='latex',
  		add.lines = add_lines(models.5[[1]]),
-	se = models.5[[2]]
+	se = models.5[[2]],
+	out='output/TABLEHC3.tex',
+	title="Table for exercise 5.d) (Regular models)",
+	notes="Model results from the exercise 1 with HC3 standard errors included."
  )
 
 # computing the dfbeta
@@ -678,7 +745,8 @@ df_restricted <- df[-c(as.numeric(rownames(smallest_b)), as.numeric(rownames(big
 
 reg5 = lm("re78 ~ train + age + educ + black + hisp + re74 + re75", df_restricted)
 
-TABLE.HC3.INFL <- stargazer(reg5, se=list(c(sqrt(diag(vcovHC(reg5, type = "HC3"))))),  type='text')
+TABLE.HC3.INFL <- stargazer(reg5, se=list(c(sqrt(diag(vcovHC(reg5, type = "HC3"))))),  type='latex', out='output/TABLEHC3INFL.tex', title="Table for exercise 5.d) (Restricted model)",
+notes="\\parbox{7cm}{Results of a model run without the observations that have the 3rd, 5th, and 10th smallest and largest influence.}")
 
 
 
@@ -699,9 +767,14 @@ boot_se <- function(model, R = 1000) {
 }
 
 se_list <- lapply(models.5[[1]], boot_se)
-TABLE.BOOT <- stargazer(models.5[[1]], se = se_list, type = "text")
+TABLE.BOOT <- stargazer(models.5[[1]], se = se_list, type = "latex", out='output/TABLEBOOT.tex',
+	title="Table for exercise 5.d) (Bootstrapped regular models)",
+	notes="Bootstrapped standard errors in parentheses.")
 
-TABLE.BOOT.INFL <- stargazer(reg5, se = list(boot_se(reg5)), type = "text")
+TABLE.BOOT.INFL <- stargazer(reg5, se = list(boot_se(reg5)), type = "latex", out='output/TABLEBOOTINFL.tex',
+	title="Table for exercise 5.d) (Bootstrapped restricted model)",
+	notes="Bootstrapped standard errors in parentheses."
+)
 
 # Bootstrapping standard errors relies on repeatedly re-sampling the sample (with replacement, many times)
 # Then re-running the model many times, in order to see how the coefficient changes
@@ -710,6 +783,9 @@ TABLE.BOOT.INFL <- stargazer(reg5, se = list(boot_se(reg5)), type = "text")
 # 4) -----------
 
 # While the standard errors in the case of the HC3 errors and the bootstrapped errors are larger (as expected)
-# The conclusions within our model do not change given that the significance of coefficients does not change
+# The conclusions within our model do not change given that coefficients stay significant at the conventional levels
 # between different error sets
-#TODO : RELATE TO DATACOLADA
+
+# The fact that our results change only a little, suggests that we do not have much heteroskedasticity in our sample.
+# As the HC3 standard errors overestimate the model's variance in small sample, it could be that the increase in the
+# standard errors could be mostly associated with the change of errors themselves. 

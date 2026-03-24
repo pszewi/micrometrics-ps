@@ -1,0 +1,17 @@
+\begin{table}
+\centering
+\begin{talltblr}[         %% tabularray outer open
+caption={Summary statistics of estimated propensity scores (Random Forest)},
+]                     %% tabularray outer close
+{                     %% tabularray inner open
+colspec={Q[]Q[]Q[]Q[]Q[]Q[]Q[]},
+hline{2}={1-7}{solid, black, 0.05em},
+hline{1}={1-7}{solid, black, 0.08em},
+hline{4}={1-7}{solid, black, 0.08em},
+column{1-7}={}{halign=l},
+}                     %% tabularray inner close
+group & min & p25 & median & p75 & max & n \\
+Control & 0.000452 & 0.001053 & 0.002317 & 0.025853 & 0.888954 & 2490 \\
+Treated & 0.006479 & 0.303313 & 0.709762 & 0.834253 & 0.952054 & 185 \\
+\end{talltblr}
+\end{table}

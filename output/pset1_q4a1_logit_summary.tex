@@ -1,0 +1,17 @@
+\begin{table}
+\centering
+\begin{talltblr}[         %% tabularray outer open
+caption={Summary statistics of estimated propensity scores (Logit)},
+]                     %% tabularray outer close
+{                     %% tabularray inner open
+colspec={Q[]Q[]Q[]Q[]Q[]Q[]Q[]},
+hline{2}={1-7}{solid, black, 0.05em},
+hline{1}={1-7}{solid, black, 0.08em},
+hline{4}={1-7}{solid, black, 0.08em},
+column{1-7}={}{halign=l},
+}                     %% tabularray inner close
+Group & Min & p25 & Median & p75 & Max & N \\
+Control & 2.22e-16 & 1.8e-05 & 0.000551 & 0.012464 & 0.834787 & 2490 \\
+Treated & 4.05e-05 & 0.314602 & 0.657362 & 0.770008 & 0.892703 & 185 \\
+\end{talltblr}
+\end{table}
