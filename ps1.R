@@ -556,6 +556,9 @@ datasummary_df(
 #removed from the sample. 
 #Overall, the trimmed group are younger, less educated, more likely to be black, 
 #slightly less likely to be hispanic, and have lower pre-treatment earnings. 
+#Lastly, we can see that the trimmed group is entirely (1.0) black and completely
+#not hispanic (0.0). We can also see that the entire trimmed group had zero 
+#pre-treatment earnings (0.0).
 
 
 #a4)
@@ -563,15 +566,15 @@ datasummary_df(
 trimmed_logit <- jtrain3$ps_logit <= 0.8
 trimmed_rf    <- jtrain3$ps_rf    <= 0.8
 #col1 (full sample and controls):
-col1 <- lm(re78 ~ age + educ + black + hisp + re74, data = jtrain3)
+col1 <- lm(re78 ~ train + age + educ + black + hisp + re74, data = jtrain3)
 #col2 (trimmed logit):
-col2 <- lm(re78 ~ age + educ + black + hisp + re74, data = jtrain3[trimmed_logit, ])
+col2 <- lm(re78 ~ train + age + educ + black + hisp + re74, data = jtrain3[trimmed_logit, ])
 #col3 (trimmed rf):
-col3 <- lm(re78 ~ age + educ + black + hisp + re74, data = jtrain3[trimmed_rf, ])
+col3 <- lm(re78 ~ train + age + educ + black + hisp + re74, data = jtrain3[trimmed_rf, ])
 #col4-col6 (placebo):
-col4 <- lm(re75 ~ age + educ + black + hisp + re74, data = jtrain3)
-col5 <- lm(re75 ~ age + educ + black + hisp + re74, data = jtrain3[trimmed_logit, ])
-col6 <- lm(re75 ~ age + educ + black + hisp + re74, data = jtrain3[trimmed_rf, ])
+col4 <- lm(re75 ~ train + age + educ + black + hisp + re74, data = jtrain3)
+col5 <- lm(re75 ~ train + age + educ + black + hisp + re74, data = jtrain3[trimmed_logit, ])
+col6 <- lm(re75 ~ train + age + educ + black + hisp + re74, data = jtrain3[trimmed_rf, ])
 
 
 #creating table 3 -> put models in a named list
@@ -604,7 +607,80 @@ modelsummary(
   gof_omit = "AIC|BIC|Log.Lik|RMSE|F",  # keep table cleaner
   output = "table3.tex"
 )
-# b) ------------------------------
+
+#a5)
+#In comparing the two propensity score estimators, we first (i) look at their 
+#respecitve flexibilities (nonlinearities / interactions). Logistic regression
+#assumes a linear function. The regression itself cannot capture the idea of an
+#interaction term, i.e. that the influence of one covariate, has an extra effect
+#on another, rather than them being completely independent. Therefore, when one 
+#wants to input this in the logistic regression, it is necessary to know about 
+#this effect beforehand and to input it manually. This is an often tedious and 
+#difficult task. Random forest does not have this limitation. It does not assume
+#linearity, which in our situation regarding NSW participants' propensity to 
+#participate, is indeed not made up of stand-alone variables. As we could see, being
+#young, black, and having no income, significantly altered ones propensity to
+#participate, thus a more non-linear and flexible model such as rf is better equipped 
+#to handle this.
+
+#(ii) The tail behavior is also different between the two estimators. Logistic 
+#regression produces propensity scores which are inherently smooth and bounded
+#between 0 and 1, which comes from the parametric assumption: that the log-odds is
+#a linear function. The model assigns control units a maximum propensity score of 
+#roughly 0.83, and the treated units a maximum of about 0.89. This leads to the 
+#trimming rule cutting relatively few (compared to the other model).
+#Random fores are non-parametric and use averaging within leaves, and thus can produce
+#propensity scores that are more extreme in areas without overlap. The random forest
+#smooths less than the logistic regression does. We can see this in our results from
+#4(a)(2), where we got maximum scores of roughly 0.87 and 0.95, for the control and
+#treatment groups, respectively. These scores exceed those of the logistic regression
+#and as a consequence also increase the amount of observations that get cut in the 
+#trimming process. In fact, already from the 75th percentile onward, the treated 
+#units will get cut, as p75 in rf for treated is already surpassing the 0.8 cutoff.
+#Rf thus needs more aggressive trimming than logistic regression does.
+#Calibration refers to how well the predicted probability equals the true 
+#underlying probability. Logistic regression is generally well-calibrated when the 
+#model is correctly specified, exactly an issue we ran into earlier in our assessment.
+#If that is correct however, then we can say that a predicted probability of 0.7 
+#really does correspond to a 70% chance of treatment. Random forests can be less 
+#well-calibrated in some settings, but in this situation, because of the possible 
+#non-linearity and the massive imbalance, we may assume that the rf's predictions
+#are more trustworthy.
+
+#(iii) With regards to interpretability, logistic regression gives much clearer
+#meaning to its coefficients. For instance, holding all others constant, the 
+#log-odds of being treated increases by 'beta' for every one unit increase for that
+#covariate. RF on the other hand, is a 'black-box' approach and is non-parametric.
+#Thus, the variable importance scores which you can extract do not tell you clear
+#information, in the same way logistic regression does. 
+#Reproducibility also favors logistic regression. Given the same data and the same 
+#specification, logistic regression always produces the exact same result. The 
+#random forest involves randomness and results depend on the random seed. Setting 
+#the seed at the same number (in our case 123) does create coherency, but if one 
+#alters this, it may change the results. 
+
+#(iv) Under logistic regression, the overlap plot shows control propensity scores 
+#concentrated near zero,i.e. the median is 0.000551, while the treated scores spread 
+#between about 0.3 and 0.9, indicating poor overlap. The random forest gives a starker 
+#separation between groups by capturing nonlinearities. While the maximum control 
+#score is similar to that of the logistic regression, more treated units receive very 
+#high scores, reflecting that some treated individuals have no close counterparts in 
+#the control group.As discussed before, this difference affects trimming. The random 
+#forest trims more treated units, specifically younger individuals who are entirely 
+#Black and have zero pre-treatment earnings. Those are the units with no credible 
+#counterfactual in the PSID data. This improves internal validity, but changes the 
+#estimand to a subset of comparable treated units. On the other hand, logistic 
+#regression retains more of these hard-to-match observations, potentially increasing 
+#bias. Thus, a more flexible estimator like the random forest gives you a more honest 
+#picture of where overlap actually exists and where it does not, even if the resulting 
+#estimates are more difficult to interpret and less reproducible.
+
+
+
+# b) 
+
+
+
 
 # ---------------------------------
 # ----------- EXE 5 ---------------
