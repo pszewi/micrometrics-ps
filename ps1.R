@@ -331,7 +331,251 @@ summary(ols_post)
 # ----------- EXE 4 ---------------
 # ---------------------------------
 
-# a) ------------------------------
+library(writexl)
+library(grf)
+library(stargazer)
+library(ggplot2)
+library(dplyr)
+library(modelsummary)
+library(sandwich)
+
+# a1) 
+logit_model <- glm(train ~ age + educ + black + hisp + re74,
+                   data = jtrain3, family = binomial(link = "logit"))
+summary(logit_model)
+
+jtrain3$ps_logit <- predict(logit_model, type = "response")
+
+psummary <- jtrain3 %>%
+  mutate(group = ifelse(train == 1, "Treated", "Control")) %>%
+  group_by(group) %>%
+  summarise(
+    min    = min(ps_logit, na.rm = TRUE),
+    p25    = quantile(ps_logit, 0.25, na.rm = TRUE),
+    median = median(ps_logit, na.rm = TRUE),
+    p75    = quantile(ps_logit, 0.75, na.rm = TRUE),
+    max    = max(ps_logit, na.rm = TRUE),
+    n      = n(),
+    .groups = "drop"
+  )
+print(psummary)
+
+#excel table
+write_xlsx(psummary, "pset1_q4a1_logit_summary.xlsx")
+
+#latex table
+psummary_latex <- psummary %>%
+  mutate(
+    min = c("2.22e-16", "4.05e-05"),
+    p25 = c("1.8e-05", "0.314602"),
+    median = c("0.000551", "0.657362"),
+    p75 = c("0.012464", "0.770008"),
+    max = c("0.834787", "0.892703"),
+    n = c("2490", "185")
+  ) %>%
+  rename(
+    Group = group,
+    Min = min,
+    p25 = p25,
+    Median = median,
+    p75 = p75,
+    Max = max,
+    N = n
+  )
+
+datasummary_df(
+  psummary_latex,
+  output = "pset1_q4a1_logit_summary.tex",
+  title = "Summary statistics of estimated propensity scores (Logit)"
+)
+#end of latex table.
+
+#a2)
+X_mat <- as.matrix(jtrain3[, c("age", "educ", "black", "hisp", "re74")])
+
+rf_model <- probability_forest(
+  X = X_mat,
+  Y = as.factor(jtrain3$train),
+  num.trees = 2000,
+  seed = 123
+)
+
+jtrain3$ps_rf <- predict(rf_model)$predictions[, 2]
+
+#way to get the table in excel:
+psummary_rf <- jtrain3 %>%
+  mutate(group = ifelse(train == 1, "Treated", "Control")) %>%
+  group_by(group) %>%
+  summarise(
+    min    = min(ps_rf, na.rm = TRUE),
+    p25    = quantile(ps_rf, 0.25, na.rm = TRUE),
+    median = median(ps_rf, na.rm = TRUE),
+    p75    = quantile(ps_rf, 0.75, na.rm = TRUE),
+    max    = max(ps_rf, na.rm = TRUE),
+    n      = n(),
+    .groups = "drop"
+  )
+
+print(psummary_rf)
+
+#excel table
+write_xlsx(psummary_rf, "pset1_q4a2_rf_summary.xlsx")
+
+#latex table
+psummary_rf_latex <- psummary_rf %>%
+  mutate(
+    min    = sprintf("%.6f", min),
+    p25    = sprintf("%.6f", p25),
+    median = sprintf("%.6f", median),
+    p75    = sprintf("%.6f", p75),
+    max    = sprintf("%.6f", max),
+    n      = as.character(n)
+  ) %>%
+  rename(
+    group  = group,
+    min    = min,
+    p25    = p25,
+    median = median,
+    p75    = p75,
+    max    = max,
+    n      = n
+  )
+
+datasummary_df(
+  psummary_rf_latex,
+  output = "pset1_q4a2_rf_summary.tex",
+  title = "Summary statistics of estimated propensity scores (Random Forest)"
+)
+#end of latex table.
+
+
+##### TA way of getting the summary statistics:
+cat("\n--- Propensity Score Summary (Random Forest) ---\n")
+cat("\ntreated:\n")
+print(summary(jtrain3$ps_rf[jtrain3$train == 1]))
+cat("\ncontrol:\n")
+print(summary(jtrain3$ps_rf[jtrain3$train == 0]))
+
+
+#a3)
+#trimming:
+trimmed <- jtrain3$ps_rf <= 0.8
+
+#(i) the implied cutoff maxW =0 e(hat)(X)
+cat("Implied cutoff max_{W=0} e_hat:", 
+    round(max(jtrain3$ps_rf[jtrain3$train == 0]), 3), "\n")
+
+#(ii) the number and fraction of treated units trimmed
+#trimming diagnostics:
+cat("\n--- Trimming Diagnostics ---\n")
+cat("Observations before trimming:", nrow(jtrain3), "\n")
+cat("Observations after trimming:", sum(trimmed), "\n")
+cat("number of treatment units before trimming:", sum(jtrain3$train == 1), "\n")
+cat("treatment units trimmed:", sum(jtrain3$train == 1 & !trimmed), "\n")
+cat("fraction of treatment units trimmed:", 
+    sum(jtrain3$train == 1 & !trimmed) / sum(jtrain3$train == 1), "\n")
+
+#(iii) a brief characterization of which treated units are trimmed
+vars <- c("age", "educ", "black", "hisp", "re74")
+
+treated_trimmed <- jtrain3 %>%
+  filter(train == 1 & !trimmed)
+
+treated_kept <- jtrain3 %>%
+  filter(train == 1 & trimmed)
+
+comparison_table <- data.frame(
+  variable = vars,
+  mean_trimmed = sapply(vars, function(v) mean(treated_trimmed[[v]], na.rm = TRUE)),
+  mean_kept    = sapply(vars, function(v) mean(treated_kept[[v]], na.rm = TRUE))
+)
+
+comparison_table$difference <- comparison_table$mean_trimmed - comparison_table$mean_kept
+
+cat("\n--- Covariate Means: Trimmed Treated vs Kept Treated ---\n")
+print(comparison_table)
+
+#excel table
+write_xlsx(comparison_table, "pset1_q4a3_comparison_table.xlsx")
+
+#latex table
+comparison_table_latex <- comparison_table %>%
+  mutate(
+    mean_trimmed = sprintf("%.6f", mean_trimmed),
+    mean_kept    = sprintf("%.6f", mean_kept),
+    difference   = sprintf("%.6f", difference)
+  ) %>%
+  rename(
+    Variable = variable,
+    "Mean trimmed" = mean_trimmed,
+    "Mean kept" = mean_kept,
+    Difference = difference
+  )
+
+datasummary_df(
+  comparison_table_latex,
+  output = "pset1_q4a3_comparison_table.tex",
+  title = "Covariate means: trimmed treated vs kept treated"
+)
+#end of latex table. 
+
+
+#The treated units which were hard to match (to control units, that is) are trimmed
+#and treated units which were not hard to match are kept. This translates to an 
+#attempt to minimize the differences in the samples of treated and control regarding 
+#their distribution of propensity scores, for these specific covariates. Thereby, 
+#improving overlap. The treated individuals with no comparable controls have been 
+#removed from the sample. 
+#Overall, the trimmed group are younger, less educated, more likely to be black, 
+#slightly less likely to be hispanic, and have lower pre-treatment earnings. 
+
+
+#a4)
+#creating trimmed for logit and repeating the trimmed of rf for clarity (->trimmed_rf)
+trimmed_logit <- jtrain3$ps_logit <= 0.8
+trimmed_rf    <- jtrain3$ps_rf    <= 0.8
+#col1 (full sample and controls):
+col1 <- lm(re78 ~ age + educ + black + hisp + re74, data = jtrain3)
+#col2 (trimmed logit):
+col2 <- lm(re78 ~ age + educ + black + hisp + re74, data = jtrain3[trimmed_logit, ])
+#col3 (trimmed rf):
+col3 <- lm(re78 ~ age + educ + black + hisp + re74, data = jtrain3[trimmed_rf, ])
+#col4-col6 (placebo):
+col4 <- lm(re75 ~ age + educ + black + hisp + re74, data = jtrain3)
+col5 <- lm(re75 ~ age + educ + black + hisp + re74, data = jtrain3[trimmed_logit, ])
+col6 <- lm(re75 ~ age + educ + black + hisp + re74, data = jtrain3[trimmed_rf, ])
+
+
+#creating table 3 -> put models in a named list
+models <- list(
+  "Col 1" = col1,
+  "Col 2" = col2,
+  "Col 3" = col3,
+  "Col 4" = col4,
+  "Col 5" = col5,
+  "Col 6" = col6
+)
+
+coef_map <- c(
+  "(Intercept)" = "Constant",
+  "train"       = "Train",
+  "age"         = "Age",
+  "educ"        = "Education",
+  "black"       = "Black",
+  "hisp"        = "Hispanic",
+  "re74"        = "1974 earnings"
+)
+
+#creating latex table:
+modelsummary(
+  models,
+  vcov = "HC1",                         # robust SEs
+  stars = c("*" = .1, "**" = .05, "***" = .01),
+  statistic = "({std.error})",         # SEs in parentheses
+  coef_map = coef_map,
+  gof_omit = "AIC|BIC|Log.Lik|RMSE|F",  # keep table cleaner
+  output = "table3.tex"
+)
 # b) ------------------------------
 
 # ---------------------------------
