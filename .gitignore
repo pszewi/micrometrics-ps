@@ -1,6 +1,11 @@
 files/*
 *.pdf
 papers/*
-.Rproj.user
-.Rhistory
-.Rproj
+*.Rproj.user
+*.Rhistory
+*.Rproj
+*.aux
+*.log
+*.fls
+*.fdb_latexmk
+main.synctex.gz

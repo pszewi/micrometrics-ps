@@ -3,7 +3,7 @@
 # ----------------
 # Template of R script to answer problem set
 # Group number: 
-# Group composition: A, B, and C
+# Group composition: Madelief van Weerdenburg, Nicollo Zambello, Jakub Przewoski 
 
 # Get the username
 user <- Sys.info()["user"]
@@ -340,6 +340,7 @@ TABLE.2 = stargazer(
 
 # a) --------------------------------
 
+
 # Option A: formula interface
 lasso_y <- rlasso(re78 ~ age + educ + black + hisp + re74 + re75, data=df)
 
@@ -369,8 +370,141 @@ post_results["train", ]  # coefficient, SE, t, p-value for train
 
 # Optional: also show conventional summary
 summary(ols_post)
+#Lasso regression selected 0 variables, meaning the regression is the the difference in mean between treated and untreated.
+#The effect of train on re78 is positive and significant
+#Problems with inference may arise since a variable might be a strong predictor of treatment, and just a weak predictor of treatment effect.
+#Since Lasso selected 0 variables, the above problem might indeed occur in this case.
 
 # b) ------------------------------
+
+df.3 <- df |>
+  dplyr::select(re78, train, age, educ, black, hisp, re74, re75) |>
+  na.omit()
+
+x_vars <- c("age", "educ", "black", "hisp", "re74", "re75")
+
+# ---- Step 1: LASSO for outcome equation: re78 ~ X ----
+form_y <- as.formula(paste0("re78 ~ ", paste(x_vars, collapse = " + ")))
+lasso_y <- hdm::rlasso(form_y, data = df.3)
+
+b_y <- coef(lasso_y)
+sel_y <- names(b_y)[b_y != 0]
+sel_y <- setdiff(sel_y, "(Intercept)")
+
+# ---- Step 2: LASSO for treatment equation: train ~ X ----
+form_d <- as.formula(paste0("train ~ ", paste(x_vars, collapse = " + ")))
+lasso_d <- hdm::rlasso(form_d, data = df.3)
+
+b_d <- coef(lasso_d)
+sel_d <- names(b_d)[b_d != 0]
+sel_d <- setdiff(sel_d, "(Intercept)")
+
+# ---- Union of selected variables ----
+sel_union <- union(sel_y, sel_d)
+
+cat("\nSelected from outcome LASSO (Sy):\n"); print(sel_y)
+cat("\nSelected from treatment LASSO (Sd):\n"); print(sel_d)
+cat("\nUnion (Sy ∪ Sd):\n"); print(sel_union)
+
+# ---- Step 3: Post-double-selection OLS: re78 ~ train + selected controls ----
+rhs_ds <- c("train", sel_union)
+
+form_ds <- as.formula(paste0("re78 ~ ", paste(rhs_ds, collapse = " + ")))
+ols_ds <- lm(form_ds, data = df.3)
+
+# ---- Robust (HC1) SE for inference (recommended) ----
+# install.packages(c("sandwich","lmtest")) if needed
+library(sandwich)
+library(lmtest)
+
+vc_ds <- vcovHC(ols_ds, type = "HC1")
+ds_results <- coeftest(ols_ds, vcov. = vc_ds)
+
+cat("\nPost-double-selection OLS with HC1 robust SE:\n")
+print(ds_results)
+cat("\nTreatment effect (train) row:\n")
+print(ds_results["train", ])
+
+# ---- Optional: stargazer table using robust SE ----
+se_hc1 <- sqrt(diag(vc_ds))
+stargazer(ols_ds, type = "text", se = list(se_hc1),
+          title = "Exercise 3(b): Double-Selection Post-LASSO OLS (HC1 SE)",
+          keep.stat = c("n", "rsq", "adj.rsq", "f"))
+# 1. the double selection procedure didn't select any of the controls, meaning the estimates are the same as in exercise 3a.
+#This means the selected controls are not strictly correlated to both assignment to treatment and treatment effect.
+
+# Dummies for age and educ:
+
+
+X <- model.matrix(~ factor(age) + factor(educ) + black + hisp + re74 + re75, data = df.3)[, -1]
+
+
+
+ds_eff <- rlassoEffect(x = X, y = df.3$re78, d = df.3$train,
+                       method = "double selection")
+print(summary(ds_eff))
+print(confint(ds_eff))
+
+
+# LASSO for outcome equation: re78 ~ X
+lasso_y <- rlasso(x = X, y = df.3$re78)
+sel_y <- names(coef(lasso_y))[coef(lasso_y) != 0]
+sel_y <- setdiff(sel_y, "(Intercept)")
+
+# LASSO for treatment equation: train ~ X
+lasso_d <- rlasso(x = X, y = df.3$train)
+sel_d <- names(coef(lasso_d))[coef(lasso_d) != 0]
+sel_d <- setdiff(sel_d, "(Intercept)")
+
+sel_union <- union(sel_y, sel_d)
+
+cat("\nSelected from outcome LASSO (Sy):\n"); print(sel_y)
+cat("\nSelected from treatment LASSO (Sd):\n"); print(sel_d)
+cat("\nUnion (Sy ∪ Sd):\n"); print(sel_union)
+
+X_sel <- if (length(sel_union) == 0) {
+  matrix(nrow = nrow(X), ncol = 0)
+} else {
+  X[, sel_union, drop = FALSE]
+}
+
+X_final <- cbind(Intercept = 1, train = df.3$train, X_sel)
+
+X_sel <- if (length(sel_union) == 0) {
+  matrix(nrow = nrow(X), ncol = 0)
+} else {
+  X[, sel_union, drop = FALSE]
+}
+
+X_final <- cbind(Intercept = 1, train = df.3$train, X_sel)
+
+fit <- lm.fit(x = X_final, y = df.3$re78)
+
+X <- X_final
+e <- fit$residuals
+
+n <- nrow(X)
+k <- ncol(X)
+
+XtX_inv <- solve(crossprod(X))
+meat <- crossprod(X, X * as.vector(e^2))
+vc_HC1 <- (n / (n - k)) * XtX_inv %% meat %% XtX_inv
+
+beta_hat <- fit$coefficients
+se_HC1 <- sqrt(diag(vc_HC1))
+t_val <- beta_hat / se_HC1
+p_val <- 2 * pt(abs(t_val), df = n - k, lower.tail = FALSE)
+
+results <- cbind(Estimate = beta_hat,
+                 "Std. Error" = se_HC1,
+                 "t value" = t_val,
+                 "Pr(>|t|)" = p_val)
+
+print(results)
+print(results["train", , drop = FALSE])
+
+#The improvement of double selection is that it protects against omitted variable bias coming from selection based only on the outcome equation.
+#The amin imbalance detected is in the variable age. Double selection improves balance by ensuring the final comparison between treated and control group is done holding age as an indicator fixed.
 
 # ---------------------------------
 # ----------- EXE 4 ---------------
@@ -669,7 +803,8 @@ modelsummary(
   statistic = "({std.error})",         # SEs in parentheses
   coef_map = coef_map,
   gof_omit = "AIC|BIC|Log.Lik|RMSE|F",  # keep table cleaner
-  output = "output/TABLE3.tex"
+  output = "output/TABLE3.tex", 
+	title="Comparison for exercise 4.a4)"
 )
 
 #a5)
