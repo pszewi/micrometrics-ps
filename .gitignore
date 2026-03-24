@@ -1,6 +1,6 @@
-files/*
+PS1/files/*
 *.pdf
-papers/*
+PS1/papers/*
 *.Rproj.user
 *.Rhistory
 *.Rproj
@@ -9,3 +9,4 @@ papers/*
 *.fls
 *.fdb_latexmk
 main.synctex.gz
+*.zip
