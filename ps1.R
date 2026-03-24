@@ -677,7 +677,25 @@ modelsummary(
 
 
 
-# b) 
+# b) The work of  Imbens and Xu (2025) speaks on the results from Dehejia and Wahba
+#(1999), who show that propensity score methods can replicate experimental results in
+#LaLonde (1986)'s setting by improving comparability between treated and control units. 
+#This is similar to what we have done in exercise 4a. But, Imbens and Xu (2025) argue 
+#that matching experimental results is not sufficient for causal validity, as it 
+#relies on strong and untestable assumptions such as unconfoundedness. (That means 
+#that treatment is as if random assigned (conditional on the pretreatment covariates)). 
+#Their placebo evidence suggests that these assumptions often fail, and thus implying 
+#that those kinds of agreements may be simply a coincidence, rather than a causal 
+#effect.Therefore, Dehejia and Wahba’s results should not be interpreted as causal. 
+#While modern methods can recover the statistical estimand under good overlap, 
+#causal interpretation is dependent upon credible identification. Then, considering 
+#part a, sensitivity to trimming, model choice, or failed placebo tests weakens 
+#causal claims. The failed placebo test is visible in Table 3, as our results show a 
+#significant effect of treatment on pre-treatment earnings in columns 4 through 6. 
+#This means that unconfoundedness did not hold and that there was still selection bias, 
+#even after trimming and attempting propensity score matching. Thus, in trying to do a 
+#credibility check on our work by using a placebo test, we have shown that we still 
+#have little credibility and that we do not have credible evidence of causality.
 
 
 
