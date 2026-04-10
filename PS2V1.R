@@ -50,3 +50,71 @@ library(TwoWayFEWeights) # If implementing TWFE weights
 
 
 
+# -------- b --------
+df <- pset_2
+
+df <- df %>%
+  mutate(year = as.numeric(year))%>%
+  arrange(st, year, div_rate, stpop)%>%
+  mutate(
+    reformed = lfdivlaw >= 1968 & lfdivlaw <= 1988,
+    group = ifelse(reformed, "Reform states", "Control states")
+  )
+
+df_collapsed <- df %>%
+  group_by(year, group) %>%
+  summarise(
+    avg_div_rate = weighted.mean(div_rate, stpop, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+
+
+pdata <- pdata.frame(df, index = c("st", "year"))
+
+
+df_diff <- df_collapsed %>%
+  pivot_wider(names_from = group, values_from = avg_div_rate) %>%
+  mutate(Difference = `Reform states` - `Control states`) %>%
+  pivot_longer(cols = c("Reform states", "Control states", "Difference"),
+               names_to = "group", values_to = "avg_div_rate")
+
+
+ggplot(df_diff, aes(x = year, y = avg_div_rate, color = group, linetype = group, 
+                    linewidth = group)) + geom_line() +
+  scale_color_manual(values = c(
+    "Reform states" = "black",
+    "Control states" = "grey50",
+    "Difference" = "black"
+  )) +
+  scale_linetype_manual(values = c(
+    "Reform states" = "solid",
+    "Control states" = "solid",
+    "Difference" = "dashed"
+  )) +
+  scale_linewidth_manual(values = c(
+    "Reform states" = 1,
+    "Control states" = 1,
+    "Difference" = 0.5
+  )) +
+  geom_vline(xintercept = 1969, linetype = "solid", linewidth = 0.4) +
+  geom_vline(xintercept = 1977, linetype = "solid", linewidth = 0.4) +
+  annotate("segment", x = 1968, xend = 1988, y = 0.15, yend = 0.15) +
+  annotate("text", x = 1983, y = 0.35, 
+           label = "Friedberg's sample", size = 3) +
+  scale_x_continuous(breaks = seq(1956, 1998, by = 2)) +
+  scale_y_continuous(limits = c(0, 7.5), breaks = 0:7) +
+  labs(
+    x = "Year",
+    y = "Divorce rate: 
+    Divorces per 1,000 persons per year",
+    color = NULL, linetype = NULL, linewidth = NULL,
+    caption = "FIGURE 1. AVERAGE DIVORCE RATE: REFORM STATES AND CONTROLS"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+    legend.position = "top",
+    legend.key.width = unit(1.5, "cm"),
+    plot.caption = element_text(hjust = 0.5, face = "bold", size = 9)
+  )
