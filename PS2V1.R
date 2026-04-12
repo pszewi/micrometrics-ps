@@ -16,6 +16,7 @@
 # install.packages("did")          # For difference-in-differences analysis
 # install.packages("modelsummary") # For regression tables
 # install.packages("TwoWayFEWeights") # For TWFE weights analysis
+# install.packages("openxlsx")
 
 
 library(haven)
@@ -28,6 +29,7 @@ library(bacondecomp)
 # library(did)        # Uncomment if using Callaway & Sant’Anna's estimator
 library(modelsummary) # For regression tables
 library(TwoWayFEWeights) # If implementing TWFE weights
+library(openxlsx)
 
 #excercise 1
 # -------- a --------
@@ -68,18 +70,13 @@ df_collapsed <- df %>%
     .groups = "drop"
   )
 
-
-
-pdata <- pdata.frame(df, index = c("st", "year"))
-
-
 df_diff <- df_collapsed %>%
   pivot_wider(names_from = group, values_from = avg_div_rate) %>%
   mutate(Difference = `Reform states` - `Control states`) %>%
   pivot_longer(cols = c("Reform states", "Control states", "Difference"),
                names_to = "group", values_to = "avg_div_rate")
 
-
+#run for the plot (i)
 ggplot(df_diff, aes(x = year, y = avg_div_rate, color = group, linetype = group, 
                     linewidth = group)) + geom_line() +
   scale_color_manual(values = c(
@@ -109,7 +106,7 @@ ggplot(df_diff, aes(x = year, y = avg_div_rate, color = group, linetype = group,
     y = "Divorce rate: 
     Divorces per 1,000 persons per year",
     color = NULL, linetype = NULL, linewidth = NULL,
-    caption = "FIGURE 1. AVERAGE DIVORCE RATE: REFORM STATES AND CONTROLS"
+    caption = "Figure 2: average divorce rate: reform and control states"
   ) +
   theme_classic() +
   theme(
@@ -118,3 +115,121 @@ ggplot(df_diff, aes(x = year, y = avg_div_rate, color = group, linetype = group,
     legend.key.width = unit(1.5, "cm"),
     plot.caption = element_text(hjust = 0.5, face = "bold", size = 9)
   )
+
+## (II)
+dfII <- pset_2
+
+dfII <- dfII %>%
+  mutate(year = as.numeric(year)) %>%
+  arrange(st, year, div_rate, stpop) %>%
+  mutate(
+    group = ifelse(lfdivlaw >= 1969 & lfdivlaw <= 1973, "Early reform states (1969-1973)",
+                   ifelse(lfdivlaw == 2000, "Late reform states (2000)", NA))
+  ) %>%
+  filter(!is.na(group)) 
+
+dfII_collapsed <- dfII %>%
+  group_by(year, group) %>%
+  summarise(
+    avg_div_rate = weighted.mean(div_rate, stpop, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+dfII_diff <- dfII_collapsed %>%
+  pivot_wider(names_from = group, values_from = avg_div_rate) %>%
+  mutate(Difference = `Early reform states (1969-1973)` - `Late reform states (2000)`) %>%
+  pivot_longer(cols = c("Early reform states (1969-1973)", "Late reform states (2000)", "Difference"),
+               names_to = "group", values_to = "avg_div_rate")
+
+#run for the plot (ii)
+ggplot(dfII_diff, aes(x = year, y = avg_div_rate, color = group, linetype = group, 
+                    linewidth = group)) + geom_line() +
+  scale_color_manual(values = c(
+    "Early reform states (1969-1973)" = "black",
+    "Late reform states (2000)" = "grey50",
+    "Difference" = "black"
+  )) +
+  scale_linetype_manual(values = c(
+    "Early reform states (1969-1973)" = "solid",
+    "Late reform states (2000)" = "solid",
+    "Difference" = "dashed"
+  )) +
+  scale_linewidth_manual(values = c(
+    "Early reform states (1969-1973)" = 1,
+    "Late reform states (2000)" = 1,
+    "Difference" = 0.5
+  )) +
+  geom_vline(xintercept = 1968.5, linetype = "solid", linewidth = 0.4) +
+  scale_x_continuous(breaks = seq(1956, 1978, by = 2), limits = c(1956, 1978)) +
+  scale_y_continuous(limits = c(0, 7.5), breaks = 0:7) +
+  labs(
+    x = "Year",
+    y = "Divorce rate: 
+    Divorces per 1,000 persons per year",
+    color = NULL, linetype = NULL, linewidth = NULL,
+    caption = "Figure 2: average divorce rate"
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+    legend.position = "top",
+    legend.key.width = unit(1.5, "cm"),
+    plot.caption = element_text(hjust = 0.5, face = "bold", size = 9)
+  )
+
+## WRITE ANSWER STILL
+
+
+# -------- c --------
+#setup (i, ii, and iii)
+dfIII <- pset_2 %>%
+  mutate(year = as.numeric(year)) %>%
+  filter(year == 1968 | year == 1978) %>%
+  mutate(
+    group = ifelse(lfdivlaw >= 1969 & lfdivlaw <= 1973, "Early reform states (1969-1973)",
+                   ifelse(lfdivlaw == 2000, "Late reform states (2000)", NA))) %>%
+  filter(!is.na(group)) %>%
+  mutate(
+    UNILATERAL = ifelse(lfdivlaw >= 1969 & lfdivlaw <= 1973, 1, 0),
+    POST = ifelse(year == 1978, 1, 0),
+    POST_UNILATERAL = UNILATERAL * POST) 
+
+# (i) Pooled OLS
+summary(lm(div_rate ~ POST_UNILATERAL + POST, data = dfIII))
+
+
+
+means <- dfIII %>%
+  group_by(UNILATERAL, POST) %>%
+  summarise(avg_div_rate = mean(div_rate, na.rm = TRUE), .groups = "drop")
+
+DiD <- (means$avg_div_rate[means$UNILATERAL==1 & means$POST==1] -
+          means$avg_div_rate[means$UNILATERAL==1 & means$POST==0]) -
+        (means$avg_div_rate[means$UNILATERAL==0 & means$POST==1] -
+          means$avg_div_rate[means$UNILATERAL==0 & means$POST==0])
+print(DiD)
+
+summary(lm(div_rate ~ POST_UNILATERAL + POST + UNILATERAL, data = dfIII))
+summary(lm(div_rate ~ factor(POST)*factor(UNILATERAL), data = dfIII))
+
+#WRITE SOMETHING HERE
+
+
+# -------- d --------
+y11 <- means$avg_div_rate[means$UNILATERAL==1 & means$POST==1]
+y10 <- means$avg_div_rate[means$UNILATERAL==1 & means$POST==0]
+y01 <- means$avg_div_rate[means$UNILATERAL==0 & means$POST==1]
+y00 <- means$avg_div_rate[means$UNILATERAL==0 & means$POST==0]
+d1 <- y11 - y10
+d2 <- y01 - y00
+did <- d1 - d2
+
+
+tab <- data.frame(
+  POST        = c("POST=1", "POST=0", "Difference 1"),
+  UNILATERAL_1 = c(y11, y10, d1),
+  UNILATERAL_0 = c(y01, y00, d2),
+  Difference_2 = c(y11 - y01, y10 - y00, did)
+)
+
+write.xlsx(tab, "TABLE_1.xlsx")
