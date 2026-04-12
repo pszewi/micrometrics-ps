@@ -197,11 +197,11 @@ dfIII <- pset_2 %>%
 # (i) Pooled OLS
 summary(lm(div_rate ~ POST_UNILATERAL + POST, data = dfIII))
 
-
-
 means <- dfIII %>%
   group_by(UNILATERAL, POST) %>%
   summarise(avg_div_rate = mean(div_rate, na.rm = TRUE), .groups = "drop")
+
+# (ii)
 
 DiD <- (means$avg_div_rate[means$UNILATERAL==1 & means$POST==1] -
           means$avg_div_rate[means$UNILATERAL==1 & means$POST==0]) -
@@ -233,3 +233,40 @@ tab <- data.frame(
 )
 
 write.xlsx(tab, "TABLE_1.xlsx")
+
+
+# -------- e --------
+df_e <- pset_2 %>%
+  mutate(year = as.numeric(year))%>%
+  mutate(lfdivlaw = as.numeric(lfdivlaw))%>%
+  arrange(st, year, div_rate, stpop)%>%
+  filter(year <= 1988) %>%
+  mutate(IMP_UNILATERAL = ifelse(lfdivlaw <= year, 1, 0))
+#%>%
+#  mutate(year_start = year - 1955)%>%
+#  mutate(year_start = as.numeric(year_start))
+
+
+# (i) (FIRST TRY)
+
+  #summary(lm(div_rate ~ st + year_start + IMP_UNILATERAL, data = df_e))
+
+#version including all year and state dummies in visible regression
+#summary(lm(div_rate ~ factor(st) + factor(year) + IMP_UNILATERAL, data = df_e))
+
+
+#(i)
+#cleaner regression:
+summary(feols(div_rate ~ IMP_UNILATERAL | st + year, data = df_e))
+
+#(ii)
+summary(feols(div_rate ~ IMP_UNILATERAL | st + year + st[year], data = df_e))
+
+#(iii)
+summary(feols(div_rate ~ IMP_UNILATERAL | st + year + st[year] + st[I(year^2)], data = df_e))
+
+#WRITE SOMETHING HERE
+
+
+
+
