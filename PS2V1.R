@@ -268,5 +268,31 @@ summary(feols(div_rate ~ IMP_UNILATERAL | st + year + st[year] + st[I(year^2)], 
 #WRITE SOMETHING HERE
 
 
+# -------- f --------
 
+# Load required package
+library(dplyr)
+#Creates simulated observations
+df_f <- tibble(obs = 1 : 6 )%>%
+  mutate (
+    state = floor( 0.9 + obs / 3 )
+  )%>%
+  group_by(state)%>%
+  mutate(year = row_number())%>%
+  ungroup() %>%
+  mutate (
+    D = as.numeric ((state == 1 & year == 3) | (state == 2 & year %in% c (2, 3))),
+    #Creates simulated outcomes
+    Y = 0.1 + 0.02 * (year ==2) + 0.05 * (D ==1) + runif(n()) / 100 ,
+    Y2 = 0.1 + 0.02 * (year ==2) + 0.05 * (D ==1) + 0.3 * (state == 2 & year == 3 ) + runif(n()) / 100,
+    Y3 = 0.1 + 0.02 * (year ==2) + 0.05 * (D ==1) + 0.4 * (state == 2 & year == 3 ) + runif(n()) / 100,
+    Y4 = 0.1 + 0.02 * (year ==2) + 0.05 * (D ==1) + 0.5 * (state == 2 & year == 3 ) + runif(n()) / 100
+  )
+print(df_f)
 
+summary(feols(Y ~ D | state + year, data = df_f))
+summary(feols(Y2 ~ D | state + year, data = df_f))
+summary(feols(Y3 ~ D | state + year, data = df_f))
+summary(feols(Y4 ~ D | state + year, data = df_f))
+
+#WRITE SOMETHING HERE
