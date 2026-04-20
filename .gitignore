@@ -1,6 +1,6 @@
-PS1/files/*
+*/files/*
 *.pdf
-PS1/papers/*
+*/papers/*
 *.Rproj.user
 *.Rhistory
 *.Rproj

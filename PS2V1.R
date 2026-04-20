@@ -31,6 +31,10 @@ library(modelsummary) # For regression tables
 library(TwoWayFEWeights) # If implementing TWFE weights
 library(openxlsx)
 
+# ----------- loading data ---------
+pset_2 <- read.csv("PS2/files/pset_2.csv",sep=';')
+
+
 #excercise 1
 # -------- a --------
 #Given that divorce rates are
@@ -194,6 +198,7 @@ dfIII <- pset_2 %>%
     POST = ifelse(year == 1978, 1, 0),
     POST_UNILATERAL = UNILATERAL * POST) 
 
+df <- pset_2
 # (i) Pooled OLS
 summary(lm(div_rate ~ POST_UNILATERAL + POST, data = dfIII))
 
@@ -270,8 +275,6 @@ summary(feols(div_rate ~ IMP_UNILATERAL | st + year + st[year] + st[I(year^2)], 
 
 # -------- f --------
 
-# Load required package
-library(dplyr)
 #Creates simulated observations
 df_f <- tibble(obs = 1 : 6 )%>%
   mutate (
