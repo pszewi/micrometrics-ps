@@ -261,53 +261,37 @@ dfIII <- pset_2 %>%
     POST_UNILATERAL = UNILATERAL * POST) 
 
 # (i) Pooled OLS
-summary(lm(div_rate ~ POST_UNILATERAL + POST, data = dfIII))
+summary(lm(div_rate ~ POST_UNILATERAL + POST, weights =stpop, data = dfIII))
 
 
 # (ii)
-means <- dfIII %>%
-  group_by(UNILATERAL, POST) %>%
-  summarise(avg_div_rate = mean(div_rate, na.rm = TRUE), .groups = "drop")
+summary(lm(div_rate ~ POST_UNILATERAL + POST + UNILATERAL, weights = stpop, data = dfIII))
 
-DiD <- (means$avg_div_rate[means$UNILATERAL==1 & means$POST==1] -
-          means$avg_div_rate[means$UNILATERAL==1 & means$POST==0]) -
-        (means$avg_div_rate[means$UNILATERAL==0 & means$POST==1] -
-          means$avg_div_rate[means$UNILATERAL==0 & means$POST==0])
-print(DiD)
+# Regression (i) pools all observations and omits UNILATERAL. Since early-reform
+# states already had higher divorce rates than late-reform states before 1969,
+# POST_UNILATERAL picks up both the baseline level gap and any treatment effect.
+# The weighted estimate is 1.7007 divorces per 1,000 people (p < 0.001), which
+# overstates the causal effect for exactly this reason.
+# Regression (ii) adds UNILATERAL, so the interaction POST_UNILATERAL now
+# isolates the change-in-change. The weighted DiD coefficient collapses to
+# -0.0050 and is indistinguishable from zero (p ~ 0.99). The manual DiD from
+# cell means in (d) reproduces this exactly. UNILATERAL itself is 1.71 and
+# POST is 2.13, both significant - confirming that almost all of the apparent
+# effect in (i) was pre-existing level difference and a common time shift,
+# not a causal response to the law.
 
-summary(lm(div_rate ~ POST_UNILATERAL + POST + UNILATERAL, data = dfIII))
-summary(lm(div_rate ~ factor(POST)*factor(UNILATERAL), data = dfIII))
+# Taking the weighted DiD at face value, the introduction of unilateral
+# divorce laws in 1969-1973 had essentially no measurable effect on divorce
+# rates by 1978 in this restricted sample.
 
-#Regression (i) is a pooled OLS that regresses on POST_UNILATERAL and POST 
-#alone. The UNILATERAL dummy is not in the regression. Thus, it does not 
-#control for pre-existing level differences between the early and late reform 
-#states. This is noteworthy because the graphs indicate that the early reform 
-#states already had higher divorce rates than late reform states before the 
-#intervention had even happened. We may thus assume an upward bias, as it 
-#combines the pre-existing level difference with the actual treatment effects. 
-#The given POST_UNILATERAL estimator is 1.5486, which is not significant. 
-#Regression (ii) is the DiD specification, which includes POST, UNILATERAL, 
-#and POST_UNILATERAL. This regression does explicitly control for the baseline 
-#level difference between the two groups. The coefficient on POST_UNILATERAL is 
-#now -0.4341, and consistent with the manual DiD calculation (print(DiD) (i.e. 
-#the full regression and the cell-means calculation are now consistent). It is 
-#important to note, however, that the significance levels in both regressions are
-#low to insignificant for anything besides the intercepts. 
-
-#To interpret the coefficients from the full DiD specification we may say that 
-#the estimated effect of introducing unilateral divorce laws is −0.4341 divorces
-#per 1,000 people per year. Thus, early reform states saw their divorce rate 
-#increase by roughly 0.4341 less than late reform states did over the same period. 
-#But, again, this coefficient is not statistically significant at the 5% level, 
-#though marginally significant at the 10% level. (Following the estimates from
-#the pooled OLS regression, the effect of introducing unilateral divorce laws 
-#would be 1.5486 divorces per 1,000 people per year, again not statistically 
-#significant.) Thus, the slight visual divergence in Figure 2 post-1969 likely 
-#reflects a continuation of pre-existing trends rather than a causal effect of 
-#the intervention, given the significance levels that we have obtained. 
 
 
 # -------- d --------
+
+means <- dfIII %>%
+  group_by(UNILATERAL, POST) %>%
+  summarise(avg_div_rate = weighted.mean(div_rate, stpop, na.rm = TRUE), .groups = "drop")
+
 y11 <- means$avg_div_rate[means$UNILATERAL==1 & means$POST==1]
 y10 <- means$avg_div_rate[means$UNILATERAL==1 & means$POST==0]
 y01 <- means$avg_div_rate[means$UNILATERAL==0 & means$POST==1]
@@ -337,15 +321,35 @@ df_e <- pset_2 %>%
 
 
 #(i)
-summary(feols(div_rate ~ IMP_UNILATERAL | st + year, data = df_e))
+summary(feols(div_rate ~ IMP_UNILATERAL | st + year, data = df_e, weights = ~stpop))
 
 #(ii)
-summary(feols(div_rate ~ IMP_UNILATERAL | st + year + st[year], data = df_e))
+summary(feols(div_rate ~ IMP_UNILATERAL | st + year + st[year], data = df_e, weights = ~stpop ))
 
 #(iii)
-summary(feols(div_rate ~ IMP_UNILATERAL | st + year + st[year] + st[I(year^2)], data = df_e))
+summary(feols(div_rate ~ IMP_UNILATERAL | st + year + st[year] + st[I(year^2)], data = df_e, weights = ~stpop ))
 
-#WRITE SOMETHING HERE
+
+# (i) FE only: IMP_UNILATERAL = -0.055 (not significant). Level-only two-way FE
+# picks up that those treated early had higher divorce rates before treatment and that
+# divorce rates were already trending up everywhere; with no allowance for
+# state-specific trajectories, the treatment dummy absorbs some of that ongoing
+# trend with the wrong sign.
+#
+# (ii) Adding state-specific linear trends: IMP_UNILATERAL = +0.477***. Once
+# each state gets its own trend, the treatment dummy measures only the
+# deviation from that trend - and there is a clear, positive short-run jump.
+# This matches Wolfers (2006) Table 2 col (2).
+#
+# (iii) Adding quadratic trends: +0.334***. Positive and significant, but
+# smaller.
+
+# Reason results change: all three specifications force the treatment effect
+# into a single number. If the effect is dynamic (rises then fades), a richer
+# trend specification will soak up part of the response and shift the
+# coefficient. The three specifications agree ONLY under the (strong)
+# assumption that in the absence of the treatment, divorce rates would have
+# evolved identically up to state fixed effects - i.e., no state-specific trends. 
 
 
 # -------- f --------
@@ -434,8 +438,6 @@ df_h %>%
 # bacon() needs BOTH:
 # - no NA values
 # - balanced panel
-# So do NOT just drop rows with NA, because that creates an unbalanced panel.
-# Instead, drop states with any missing div_rate in 1956-1988.
 
 bad_states <- df_h %>%
   group_by(st) %>%
@@ -476,9 +478,14 @@ ggplot(bacon_h, aes(x = weight, y = estimate, shape = type)) +
   theme_classic()
 ggsave("output/goodmanbacon.png")
 
-# Goodman-Bacon decomposes the TWFE estimate into a weighted average of 2x2 DiDs.
-# The key issue is how much weight comes from earlier-vs-later treated comparisons;
-# there is no strong evidence here that negative Bacon weights are the main problem.
+# Goodman-Bacon weights are non-negative by construction. The diagnostic
+# concern is how much weight sits on comparisons that use already-treated
+# units as controls (Later vs Earlier Treated) or on always-treated controls
+# (Later vs Always Treated), because under heterogeneous effects these carry
+# contaminated estimates. Here Later-vs-Earlier carries ~7% weight and
+# Later-vs-Always ~10% with a large negative estimate (-1.18), which pulls
+# the TWFE coefficient down - consistent with Wolfers's point that a single
+# coefficient misstates a dynamic response.
 
 
 # -------- i --------
@@ -746,7 +753,11 @@ best_linear_projection(cf, X.2)
 # ii) targeting operator characteristic
 tau_hat <- predict(cf)$predictions
 toc <- rank_average_treatment_effect(cf, priorities = tau_hat)
+png("toc.png")
 plot(toc)
+dev.off()
+
+
 
 # export BLP + AUTOC together
 blp_mat <- best_linear_projection(cf, X.2)
@@ -798,16 +809,17 @@ plot_df <- data.frame(
 )
 
 # Faceted panel for multiple variables:
-  plot_long <- plot_df |>
-    pivot_longer(-tau, names_to = "variable", values_to = "value")
+plot_long <- plot_df |>
+  pivot_longer(-tau, names_to = "variable", values_to = "value")
 
-  ggplot(plot_long, aes(x = value, y = tau)) +
-    geom_point(alpha = 0.1) +
-    geom_smooth(method = "loess", color = "blue", linewidth=1) +
-		geom_hline(yintercept =0, linetype="dashed") + 
-    facet_wrap(~variable, scales = "free_x") +
-    labs(x = "Covariate Value", y = "Estimated CATE") +
-    theme_minimal()
+ggplot(plot_long, aes(x = value, y = tau)) +
+	geom_point(alpha = 0.1) +
+	geom_smooth(method = "loess", method.args = list(degree = 1), color = "blue", linewidth=1) +
+	geom_hline(yintercept =0, linetype="dashed") + 
+	facet_wrap(~variable, scales = "free_x") +
+	labs(x = "Covariate Value", y = "Estimated CATE") +
+	theme_minimal()
+
 ggsave("output/plot_cate.png")
 
 # The chosen variables were plotted and in fact confirm what was found in the previous exercises - CATEs seem to differ across the values of covariates for some variables.
@@ -863,7 +875,11 @@ write_latex_table(
 # toc
 tau_hat_dishonest <- predict(cf_dishonest)$predictions
 toc_dishonest <- rank_average_treatment_effect(cf_dishonest, priorities = tau_hat_dishonest)
+
+png("toc_dishonest.png")
 plot(toc_dishonest)
+dev.off()
+
 
 plot_df_dh <- data.frame(
   tau = tau_hat_dishonest,
@@ -875,38 +891,21 @@ plot_df_dh <- data.frame(
 )
 
 # Faceted panel for multiple variables:
-  plot_long_dishonest <- plot_df_dh |>
-    pivot_longer(-tau, names_to = "variable", values_to = "value")
+plot_long_dishonest <- plot_df_dh |>
+	pivot_longer(-tau, names_to = "variable", values_to = "value")
 
-  ggplot(plot_long_dishonest, aes(x = value, y = tau)) +
-    geom_point(alpha = 0.1) +
-    geom_smooth(method = "loess", color = "blue", linewidth=1) +
-		geom_hline(yintercept =0, linetype="dashed") + 
-    facet_wrap(~variable, scales = "free_x") +
-    labs(x = "Covariate Value", y = "Estimated CATE") +
-    theme_minimal()
+ggplot(plot_long_dishonest, aes(x = value, y = tau)) +
+	geom_point(alpha = 0.1) +
+	geom_smooth(method = "loess", method.args = list(degree = 1), color = "blue", linewidth=1) +
+	geom_hline(yintercept =0, linetype="dashed") + 
+	facet_wrap(~variable, scales = "free_x") +
+	labs(x = "Covariate Value", y = "Estimated CATE") +
+	theme_minimal()
 ggsave("output/plot_cate_dishonest.png")
 
 # Honesty is the procedure of splitting the data, such that the no tree in the random forest uses a single observation/sample for both placing the splits (building the tree) and predicting the values of the CATEs.
 # It is important for the computation of the average treatment effect, because it allows for the unbiased estimation of the point estimates and the variance. Without honesty, we would find that the bias of the estimator is not bound, and that the condifence intervals of the coefficients would be too small, therefore destroying inference.
 # This problem is related to the fact that our data would be used twice - both for creation of the tree and for the estimation of the CATEs
 
-#TODO: proposed replacement for the honesty paragraph above
-# Why this matters primarily for CATEs (not so much for the ATE):
-# - CATE estimates and their pointwise variance rely on the within-leaf
-#   means being unbiased conditional on the tree structure. Without honesty,
-#   the same points that chose favourable splits also populate the leaves,
-#   so leaf means inherit the adaptive splitting noise - biasing τ̂(x) and
-#   breaking the asymptotic normality result in Wager & Athey (2018).
-#   Confidence intervals from `predict(cf, estimate.variance = TRUE)` are
-#   therefore too narrow without honesty.
-# - The ATE in grf is computed via an AIPW/doubly-robust score, which is
-#   fairly robust to moderate misspecification of the nuisance CATE. That
-#   is why we observe here that the ATE with honesty = TRUE and
-#   honesty = FALSE are essentially the same (see the exported table).
-#
-# When would the ATEs differ? When n is small relative to the complexity
-# of the true CATE surface, when overlap is poor, or when nuisance models
-# are badly overfit - in those cases the AIPW correction can no longer
-# absorb the adaptive bias, and the non-honest ATE drifts from the honest
-# one.
+#This issue mainly affects estimation of the conditional average treatment effect because it relies on unbiased averages within the leaves of the tree, conditional on how the tree is built. Lack of honesty introduces adaptive bias and invalidates standard inference, leading to biased conditional average treatment effect estimates and overly narrow confidence intervals.
+#In this setting we estimate the ATE using doubly-robust methods, so the lack of honesty does not change it much. This would not be the case if we our sample was small or if the overlap assumption was violated.
