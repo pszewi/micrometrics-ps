@@ -1,4 +1,5 @@
 */files/*
+*/stata_files/*
 *.pdf
 */papers/*
 *.Rproj.user
@@ -10,3 +11,4 @@
 *.fdb_latexmk
 main.synctex.gz
 *.zip
+microeconometrics_*.R
