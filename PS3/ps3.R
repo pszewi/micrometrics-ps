@@ -1,5 +1,5 @@
 # ----------------
-# setup
+# setup hello
 # ----------------
 # Template of R script to answer problem set
 # Group number: 30
