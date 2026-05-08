@@ -35,7 +35,8 @@ cran_packages <- c(
   "dplyr", "stargazer", "tidyr", "sandwich",
   "lmtest", "openxlsx", "grf",
   "ggplot2", "modelsummary", "rdrobust",
-  "rddensity", "lpdensity", "patchwork"
+  "rddensity", "lpdensity", "patchwork", 
+  "xlsx", "openxlsx", "cowplot", "gridGraphics"
 )
 
 for (pkg in cran_packages) {
@@ -94,22 +95,43 @@ colnames(table_1) <- c(
 )
 print(table_1)
 
-# TODO: export
+hs <- createStyle(
+  textDecoration = "BOLD", fontName = "Arial Narrow"
+)
+
+openxlsx::write.xlsx(table_1, "Table_1.xlsx", 
+                     rowNames = T, headerStyle = hs, colWidths="auto")
 
 # ---- c) -------
-
+titles <- c(
+  hischshr1520m = "Male High School Share(15–20)",
+  i89           = "Islamic Mayor 1989",
+  vshr_islam1994 = "Islamic Vote Share(1994)",
+  partycount    = "# of Parties Receiving votes (1994)",
+  lpop1994      = "Log Population (1994)",
+  merkezi       = "District Center",
+  merkezp       = "Province Center",
+  subbuyuk      = "Sub-Metro Center",
+  buyuk         = "Metro Center"
+)
 
 plots <- lapply(covariates, function(v) {
   invisible(capture.output(
-    p <- rdplot(df1[[v]], df1$x, c = 0, title = v)$rdplot
+    p <- rdplot(df1[[v]], df1$x, c = 0)$rdplot
   ))
-  p
+  p + ggplot2::labs(title = titles[v])
 })
 
 wrap_plots(plots, ncol = 3)
 
-# TODO: title the graphs
-# TODO: export
+plots2 <- wrap_plots(plots, ncol = 3)
+
+
+dpi = 150
+png(filename = "plot_1c.png", width= (650 * (dpi/72)), height= (450 * (dpi/72)), res = dpi, bg = "white")
+plots2
+dev.off()
+
 
 # ---- d) -------
 
@@ -117,18 +139,41 @@ wrap_plots(plots, ncol = 3)
 band <- rdrobust(df1$Y, df1$X)
 h_l <- -band$bws[1]
 h_r <- band$bws[1]
-hist(df1$X[df1$X >= h_l & df1$X < 0],
-  col = "blue",
-  breaks = 10, xlim = c(-30, 30)
-)
-hist(df1$X[df1$X >= 0 & df1$X <= h_r], col = "red", breaks = 10, add = TRUE)
 
+Histogram <- function() {
+  hist(df1$X[df1$X >= h_l & df1$X < 0],
+     col = "blue",
+     breaks = 10, xlim = c(-30, 30),
+     main = "Histogram around cutoff",
+     xlab = "Islamic vote margin in 1994 ",
+     ylab = "Frequency"
+)
+hist(df1$X[df1$X >= 0 & df1$X <= h_r], 
+     col = "red", 
+     breaks = 10, add = TRUE)
+}
+Histogram()
 
 # Plot of density of X
 rdd_d <- rddensity(X = df1$X)
-rdplotdensity(rdd = rdd_d, X = df1$X)
+p_density <- rdplotdensity(rdd = rdd_d, X = df1$X)$Estplot
 
-# TODO: Polish, combine and export
+p_density_2 <- {p_density +
+  labs(title = "Density of running variable",
+       x = "Score (centered at cutoff)",
+       y = "Density")}
+p_density_2
+
+plots_1d <- plot_grid(
+  ~Histogram(), 
+  p_density_2,
+  ncol = 2
+)
+
+dpi = 150
+png(filename = "plot_1d.png", width= (650 * (dpi/72)), height= (450 * (dpi/72)), res = dpi, bg = "white")
+plots_1d
+dev.off()
 
 # ---- e) -------
 
