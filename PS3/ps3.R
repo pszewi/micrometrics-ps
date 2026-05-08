@@ -128,7 +128,7 @@ plots2 <- wrap_plots(plots, ncol = 3)
 
 
 dpi = 150
-png(filename = "plot_1c.png", width= (650 * (dpi/72)), height= (450 * (dpi/72)), res = dpi, bg = "white")
+png(filename = "Graph_1.png", width= (650 * (dpi/72)), height= (450 * (dpi/72)), res = dpi, bg = "white")
 plots2
 dev.off()
 
@@ -171,7 +171,7 @@ plots_1d <- plot_grid(
 )
 
 dpi = 150
-png(filename = "plot_1d.png", width= (650 * (dpi/72)), height= (450 * (dpi/72)), res = dpi, bg = "white")
+png(filename = "Graph_2.png", width= (650 * (dpi/72)), height= (450 * (dpi/72)), res = dpi, bg = "white")
 plots_1d
 dev.off()
 
