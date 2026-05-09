@@ -183,6 +183,12 @@ disc_test <- data.frame(
 )
 t(disc_test)
 
+
+table_Q1e <- t(disc_test)
+openxlsx::write.xlsx(table_Q1e, "output/Table_Q1e.xlsx", 
+                     rowNames = T, headerStyle = hs, colWidths="auto")
+
+
 # Rddensity tests whether there exists a discontinuity in the running variable. 
 # Here, the test fails to reject the null of continuity in the running variable’s 
 # density at the cutoff (p = 0.163), indicating no evidence of manipulation. 
@@ -200,12 +206,18 @@ placebo_results <- lapply(cutoffs, function(c) {
   c(cutoff = c, tau = est$coef[1], ci_low = ci[1], ci_high = ci[4])
 })
 placebo_df <- as.data.frame(do.call(rbind, placebo_results))
-ggplot(placebo_df, aes(x = cutoff, y = tau)) +
+plot_Q1f <- ggplot(placebo_df, aes(x = cutoff, y = tau)) +
   geom_point(color = "blue") +
   geom_errorbar(aes(ymin = ci_low, ymax = ci_high), width = 1) +
   geom_hline(yintercept = 0, linetype = "dashed") +
   geom_vline(xintercept = 0, linetype = "dashed") +
   theme_minimal()
+plot_Q1f
+
+dpi = 150
+png(filename = "output/Graph_Q1f.png", width= (650 * (dpi/72)), height= (450 * (dpi/72)), res = dpi, bg = "white")
+plot_Q1f
+dev.off()
 
 # In this part we test if alternative discontinuities exist using placebo RD tests.
 # If the RD is valid, then the discontinuity should only appear at the true cutoff,
@@ -214,6 +226,7 @@ ggplot(placebo_df, aes(x = cutoff, y = tau)) +
 # by the code above, it is clear that none of these 4 placebo cutoffs are statistically
 # different from zero, and thus we do not find evidence of discontinuities at 
 # alternative cutoffs.
+
 # ---- g) -------
 rdplot(
   y = df1$Y, x = df1$X, x.label = "Running variable",
