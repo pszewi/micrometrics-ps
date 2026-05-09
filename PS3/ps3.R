@@ -99,7 +99,7 @@ hs <- createStyle(
   textDecoration = "BOLD", fontName = "Arial Narrow"
 )
 
-openxlsx::write.xlsx(table_1, "Table_1.xlsx", 
+openxlsx::write.xlsx(table_1, "output/Table_1.xlsx", 
                      rowNames = T, headerStyle = hs, colWidths="auto")
 
 # ---- c) -------
@@ -128,7 +128,7 @@ plots2 <- wrap_plots(plots, ncol = 3)
 
 
 dpi = 150
-png(filename = "Graph_1.png", width= (650 * (dpi/72)), height= (450 * (dpi/72)), res = dpi, bg = "white")
+png(filename = "output/Graph_1.png", width= (650 * (dpi/72)), height= (450 * (dpi/72)), res = dpi, bg = "white")
 plots2
 dev.off()
 
@@ -171,7 +171,7 @@ plots_1d <- plot_grid(
 )
 
 dpi = 150
-png(filename = "Graph_2.png", width= (650 * (dpi/72)), height= (450 * (dpi/72)), res = dpi, bg = "white")
+png(filename = "output/Graph_2.png", width= (650 * (dpi/72)), height= (450 * (dpi/72)), res = dpi, bg = "white")
 plots_1d
 dev.off()
 
@@ -181,9 +181,13 @@ disc_test <- data.frame(
   "T Stat." = rdd_d$test$t_jk,
   "P-value" = rdd_d$test$p_jk
 )
+t(disc_test)
 
-# Rddensity tests whether there exists a discontinuity in the running variable
-# TODO: by means of ....
+# Rddensity tests whether there exists a discontinuity in the running variable. 
+# Here, the test fails to reject the null of continuity in the running variable’s 
+# density at the cutoff (p = 0.163), indicating no evidence of manipulation. 
+# This supports the validity of the RD design, as it does not provide any evidence
+# of manipulation of the running variable around the cutoff.
 
 # ---- f) -------
 
@@ -203,8 +207,13 @@ ggplot(placebo_df, aes(x = cutoff, y = tau)) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   theme_minimal()
 
-# TODO: write the text
-
+# In this part we test if alternative discontinuities exist using placebo RD tests.
+# If the RD is valid, then the discontinuity should only appear at the true cutoff,
+# which is zero. At other cutoffs (-10, -5, 5, and 10) the estimated treatment
+# effect should be close to zero and not statistically significant. In the plot made
+# by the code above, it is clear that none of these 4 placebo cutoffs are statistically
+# different from zero, and thus we do not find evidence of discontinuities at 
+# alternative cutoffs.
 # ---- g) -------
 rdplot(
   y = df1$Y, x = df1$X, x.label = "Running variable",
