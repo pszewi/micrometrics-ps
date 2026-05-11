@@ -36,8 +36,8 @@ cran_packages <- c(
   "lmtest", "openxlsx", "grf",
   "ggplot2", "modelsummary", "rdrobust",
   "rddensity", "lpdensity", "patchwork", 
-#  "xlsx", "openxlsx", "cowplot", "gridGraphics",
-	"haven", "fixest"
+  "cowplot", "gridGraphics",
+	"haven", "fixest", "stargazer"
 )
 
 for (pkg in cran_packages) {
@@ -75,7 +75,6 @@ rdplot(
 
 # ---- b) -------
 
-# TODO: Some things from the tutorial that need to be adjusted to work!
 covariates <- c(
   "hischshr1520m", "i89", "vshr_islam1994", "partycount",
   "lpop1994", "merkezi", "merkezp", "subbuyuk", "buyuk"
@@ -84,26 +83,28 @@ covariates <- c(
 results_b <- sapply(covariates, function(var) {
   est <- rdrobust(y = df1[[var]], x = df1$X)
   c(
-    band = est$bws[1, 1],
+    band = round(est$bws[1, 1],3),
     tau = round(est$coef[1], 3),
-    pval = round(est$pv[3], 3),
+    pval = round(est$pv[1], 3),
     obsnum = sum(est$N_h[1], est$N_h[2])
   )
 })
 
 table_1 <- t(results_b)
 colnames(table_1) <- c(
-  "MSE-Optimal Bandwidth", "RD Estimator", "p-value",
-  "effective number of obervations"
+  "MSE-Optimal Band.", "RD Estimator", "p-value",
+  "eff. num. of obs."
 )
+table_1 <- cbind(Label = rownames(table_1), table_1)
+rownames(table_1) <- 1:nrow(table_1)
 print(table_1)
+
 
 hs <- createStyle(
   textDecoration = "BOLD", fontName = "Arial Narrow"
 )
 
-openxlsx::write.xlsx(table_1, "output/Table_1.xlsx", 
-                     rowNames = T, headerStyle = hs, colWidths="auto")
+stargazer(table_1, type="latex", out='output/Table_1.tex')
 
 # ---- c) -------
 titles <- c(
@@ -120,7 +121,7 @@ titles <- c(
 
 plots <- lapply(covariates, function(v) {
   invisible(capture.output(
-    p <- rdplot(df1[[v]], df1$x, c = 0)$rdplot
+    p <- rdplot(df1[[v]], df1$X, c = 0)$rdplot
   ))
   p + ggplot2::labs(title = titles[v])
 })
@@ -188,8 +189,7 @@ t(disc_test)
 
 
 table_Q1e <- t(disc_test)
-openxlsx::write.xlsx(table_Q1e, "output/Table_Q1e.xlsx", 
-                     rowNames = T, headerStyle = hs, colWidths="auto")
+stargazer(table_Q1e, type='latex', out='output/Table_Q1e.tex')
 
 
 # Rddensity tests whether there exists a discontinuity in the running variable. 
@@ -252,14 +252,14 @@ rdplot(
 # Triangular kernel is the default
 # It gives more weight to observations close to the cutoff
 # and less weight to observations close to the boundary
-summary(rdrobust(y = df1$Y, x = df1$X))
+summary(rdrobust(y = df1$Y, x = df1$X, all=TRUE
 
 # Answer: We can see that with the triangular kernel,
 # the effect is only significant at the 10% level, but not other conventional
 # significance levels. 
 
 # Uniform kernel that treats every observation with the same weight
-summary(rdrobust(y = df1$Y, x = df1$X, kernel = "uniform"))
+summary(rdrobust(y = df1$Y, x = df1$X, kernel = "uniform", all=TRUE))
 
 # With the uniform kernel, we get that the effect is significant at the 5%
 # level as well.
@@ -373,7 +373,8 @@ df2 <- read_dta("stata_files/fraud_pcenter_final.dta") |>
   mutate(
     dst = as.numeric(`_dist`),
 		dist = dst,
-    temp = if_else(cov == 0, -dist, dist)
+    temp = if_else(cov == 0, -dist, dist),
+		instr = if_else(temp >= 0, 1, 0),
   ) |>
   filter(conflict != 1)
 
@@ -395,6 +396,7 @@ exe2p1 <- rdplot(df2$cov, df2$temp,
 ggsave("output/exe2p1.png", exe2p1$rdplot)
 
 
+summary(rdrobust(df2$cov, df2$dist))
 # the treatment rd together and export
 models <- list(
   Treatment = rdrobust(y = df2$cov, x = df2$temp)
@@ -402,14 +404,18 @@ models <- list(
 
 rdrobust_modelsummary(
   models,
-  estimate_types = "Robust",
+  estimate_types = "Conventional",
   output = "output/my_rdrobust_table.tex"
 )
 
 
 # Answer:
-# This is a fuzzy rdd as we have that after the cutoff the treatment switches
-# to 1 with probability equal to 1. 
+# This is a fuzzy rdd as we have that after the cutoff the treatment does not
+# switch to 1 with probability equal to 1.
+# Note that due to the error, we have that some observations below the cutoff
+# already start being treated (have coverage), likely due to measurement error
+# of the proxy.
+
 # The validity of the spatial rdd relies on the classic assumptions:
 # The potential outcome functions must be continuous in the treatment boundary 
 # The probability of treatment must jump at the cutoff and there must be no 
@@ -418,19 +424,19 @@ rdrobust_modelsummary(
 # be at least one polling center on each side of the boundary so that we can 
 # carry out our comparison 
 
-#TODO: Check slides if there's something missing regarding fuzzy RDD
-
 # ----------------
 # ---- b) -------
 # ----------------
 
 # Answer:
-#TODO: This is an answer that is preliminary, think about this in the context of the paper!
-# Question: When does having a proxy for latitude keep the design sharp? 
+# Question: When does having a proxy for longitude keep the design sharp? 
 # I guess the design will stay sharp if the error from the proxy does not
 # affect the distance, i.e., if we knew that the longitude of the boundary
 # doesn't change within the sample (therefore would not be a problem,
 # because there would be not much variation in the distance)
+# In other words, we would have to be moving along a longitude line,
+# so that minimal variation in the longitude does not have a large effect
+# on the results.
 
 # ----------------
 # ---- c) -------
@@ -483,7 +489,7 @@ for (v in outcomes) {
         abs(temp) <= hopt[[paste0(v, "_", r)]]
       ) |>
       summarise(m = mean(.data[[paste0("vote_", v)]], na.rm = TRUE)) |>
-      pull(m)
+pull(m)
   }
 }
 
@@ -515,12 +521,18 @@ fit_fuzzy_iv <- function(sample_data, outcome, bandwidth) {
     )
 
   feols(
-    as.formula(paste0(yvar, " ~ 1 | segment50 | cov ~ temp")),
+    as.formula(paste0(yvar, " ~ temp | segment50 | cov + cov:temp ~ instr + instr:temp")),
     data = d,
     cluster = ~segment50
   )
 }
 
+# quick test of the first and second stage for all regions
+summary(fit_fuzzy_iv(sample_data = df2, outcome = "comb_ind", bandwidth=hopt[["comb_ind"]]), stage=1)
+summary(fit_fuzzy_iv(sample_data = df2, outcome = "comb_ind", bandwidth=hopt[["comb_ind"]]), stage=2)
+
+
+# running the loop for everything
 for (v in outcomes) {
   fuzzy_iv_results[[paste0("iv_all_", v)]] <- fit_fuzzy_iv(
     sample_data = df2,
@@ -590,7 +602,7 @@ fuzzy_iv_latex <- c(
     " \\\\"
   ),
   "\\hline",
-  "\\multicolumn{4}{l}{\\footnotesize IV estimates: cov instrumented by \_dist} \\\\",
+  "\\multicolumn{4}{l}{\\footnotesize IV estimates: cov instrumented by 1\\{temp $\\ge$ 0\\}} \\\\",
   "\\multicolumn{4}{l}{\\footnotesize Segment50 fixed effects included; clustered standard errors by segment50 in parentheses.} \\\\",
   "\\multicolumn{4}{l}{\\footnotesize * p $<$ 0.10, ** p $<$ 0.05, *** p $<$ 0.01.} \\\\",
   "\\hline\\hline",
@@ -599,7 +611,6 @@ fuzzy_iv_latex <- c(
 
 writeLines(fuzzy_iv_latex, "output/results_fuzzy_iv_dist.tex")
 # Answer:
-# TODO: WRITE THIS: 
 # Under the assumption of local monotonicity (needed for the IV interpretation),
 # we get that this IV should identify the LATE for people at the boundary.
 # However, this identification could be compromised due to possible measurement
@@ -608,10 +619,9 @@ writeLines(fuzzy_iv_latex, "output/results_fuzzy_iv_dist.tex")
 # election fraud. From the generated table, one can see that the estimates
 # are generally smaller than the original estimates. "All regions" become 
 # more negative with only the Indicator coefficients being significant.
-# For "Region 1", Indicator coefficient shrinks towards 0, while the
-# Vote share coef becomes more negative. Finally, the "Region 2" coefficients 
-# also become more negative. while both were already close to 0, the Idicator 
-# coefficient becomes negative, while the Vote share shrinks to 0.001
-# Generally, it should be noted that the coefficients become less significant
-# and the Southeast region is still driving those results.
-
+# For "Region 1" (Southeast), both coefficients became more negative
+# For the "Region 2" (Northeast), coefficients shrunk more towards 0,
+# with the Vote Share coefficient switching sign.
+# Generally, it should be noted that all coefficients are at most barely
+# significant at the 10% level in this setting
+# and that the Southeast region is still driving those results.
