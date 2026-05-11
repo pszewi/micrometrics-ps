@@ -36,7 +36,8 @@ cran_packages <- c(
   "lmtest", "openxlsx", "grf",
   "ggplot2", "modelsummary", "rdrobust",
   "rddensity", "lpdensity", "patchwork", 
-  "xlsx", "openxlsx", "cowplot", "gridGraphics"
+#  "xlsx", "openxlsx", "cowplot", "gridGraphics",
+	"haven", "fixest"
 )
 
 for (pkg in cran_packages) {
@@ -46,6 +47,8 @@ for (pkg in cran_packages) {
   }
 }
 
+# custom little utility for making tables (stored in a separate file)
+source("rdrobust_modelsummary.R")
 # ---------------
 set.seed("12345")
 # ---------------
@@ -270,7 +273,6 @@ subsample <- df1 |> filter((X < opt_i) & (X > -opt_i))
 
 summary(lm("Y~X+T", data = subsample))
 
-# TODO: figure out whether this is actually correct,
 # ---- k) -------
 
 bnds <- seq(0.5, 1.5, by = 0.25)
@@ -345,183 +347,249 @@ ggsave("output/graph_3.png")
 # EXE 2
 # ---------------
 
-df2 <- read.csv(
-  "stata_files/fraud_pcenter_final.csv",
-  sep = ";",
-  check.names = FALSE,
-  fileEncoding = "latin1",
-  na.strings = c("", ".", "NA")
-)
-
-# In some imports, "_dist" may become "X_dist"
-run_var <- intersect(c("_dist", "X_dist"), names(df2))[1]
-if (length(run_var) == 0 || is.na(run_var)) {
-  stop("Proxy-based signed running variable not found. Check whether the column is named '_dist' or 'X_dist'.")
-}
-
-# Keep the same estimation sample used in the one-dimensional analysis
-df2 <- df2 |>
-  filter(conflict == 0, ind_seg50 == 1) |>
+df2 <- read_dta("stata_files/fraud_pcenter_final.dta") |>
   mutate(
-    run = .data[[run_var]],
-    post = as.integer(run >= 0)
-  )
+    dst = as.numeric(`_dist`),
+		dist = dst,
+    temp = if_else(cov == 0, -dist, dist)
+  ) |>
+  filter(conflict != 1)
 
-# ----------------
-# helper functions
-# ----------------
 
-# MSE-optimal bandwidth for fuzzy RD
-get_h_fuzzy <- function(data, yvar) {
-  d <- data |>
-    filter(!is.na(.data[[yvar]]), !is.na(cov), !is.na(run))
-  
-  bw <- rdbwselect(
-    y = d[[yvar]],
-    x = d$run,
-    fuzzy = d$cov,
-    c = 0,
-    p = 1,
-    kernel = "triangular",
-    bwselect = "mserd"
-  )
-  
-  as.numeric(bw$bws[1, 1])
-}
-
-# Fuzzy RD point estimate with segment fixed effects:
-# Wald estimate = reduced-form jump / first-stage jump
-fuzzy_rd_fe <- function(data, yvar) {
-  d <- data |>
-    filter(!is.na(.data[[yvar]]), !is.na(cov), !is.na(run))
-  
-  h <- get_h_fuzzy(d, yvar)
-  
-  d_loc <- d |>
-    filter(abs(run) <= h)
-  
-  rf <- lm(
-    as.formula(
-      paste0(yvar, " ~ post + run + post:run + factor(segment50)")
-    ),
-    data = d_loc
-  )
-  
-  fs <- lm(
-    cov ~ post + run + post:run + factor(segment50),
-    data = d_loc
-  )
-  
-  tau_rf <- unname(coef(rf)["post"])
-  tau_fs <- unname(coef(fs)["post"])
-  
-  data.frame(
-    outcome = yvar,
-    bandwidth = h,
-    n = nobs(rf),
-    reduced_form = tau_rf,
-    first_stage = tau_fs,
-    point_estimate = tau_rf / tau_fs
-  )
-}
 
 # ----------------
 # ---- a) -------
 # ----------------
 
 # RD plot of treatment status against the proxy-based running variable
-png("pset_3_ex2_a_treatment_proxy_rdplot.png", width = 900, height = 700)
-rdplot(
-  y = df2$cov,
-  x = df2$run,
-  c = 0,
-  p = 1,
-  kernel = "triangular",
+
+exe2p1 <- rdplot(df2$cov, df2$temp,
+	kernel = "triangular",
   x.label = "Running Variable",
   y.label = "Treatment Variable",
   title = "Treatment Variable against Proxy-Based Running Variable"
 )
-dev.off()
 
-# First-stage RD estimate (treatment on the proxy-based running variable)
-first_stage_rd <- rdrobust(
-  y = df2$cov,
-  x = df2$run,
-  c = 0,
-  p = 1,
-  kernel = "triangular",
-  bwselect = "mserd"
+ggsave("output/exe2p1.png", exe2p1$rdplot)
+
+
+# the treatment rd together and export
+models <- list(
+  Treatment = rdrobust(y = df2$cov, x = df2$temp)
 )
 
-first_stage_table <- data.frame(
-  Conventional_Estimate = round(first_stage_rd$coef[1], 4),
-  Conventional_SE = round(first_stage_rd$se[1], 4),
-  Conventional_pvalue = round(first_stage_rd$pv[1], 4),
-  Bandwidth_Left = round(first_stage_rd$bws[1, 1], 4),
-  Bandwidth_Right = round(first_stage_rd$bws[1, 2], 4)
+rdrobust_modelsummary(
+  models,
+  estimate_types = "Robust",
+  output = "output/my_rdrobust_table.tex"
 )
 
-print(first_stage_table)
 
-openxlsx::write.xlsx(
-  first_stage_table,
-  "pset_3_ex2_a_first_stage.xlsx",
-  rowNames = FALSE,
-  overwrite = TRUE
-)
+# Answer:
+# This is a fuzzy rdd as we have that after the cutoff the treatment switches
+# to 1 with probability equal to 1. 
+# The validity of the spatial rdd relies on the classic assumptions:
+# The potential outcome functions must be continuous in the treatment boundary 
+# The probability of treatment must jump at the cutoff and there must be no 
+# manipulation around it. 
+# Also, for every part of the boundary (i.e. for every segment), there must
+# be at least one polling center on each side of the boundary so that we can 
+# carry out our comparison 
 
-# Comment:
-# This is a fuzzy RD: the proxy-based score does not pin down coverage perfectly.
-# The design is valid if potential outcomes are continuous at the cutoff, treatment
-# probability jumps at zero, and there is no precise sorting/manipulation there
-# (plus local monotonicity if we want a fuzzy-RD/LATE interpretation).
+#TODO: Check slides if there's something missing regarding fuzzy RDD
 
 # ----------------
 # ---- b) -------
 # ----------------
 
-# Comment:
-# If the coverage boundary were approximately horizontal (east-west / constant latitude),
-# distance to the boundary would depend almost only on latitude. Then using only a proxy
-# for longitude would barely distort the running variable, so the RD design would remain
-# essentially the same as in Gonzalez (2021).
+# Answer:
+#TODO: This is an answer that is preliminary, think about this in the context of the paper!
+# Question: When does having a proxy for latitude keep the design sharp? 
+# I guess the design will stay sharp if the error from the proxy does not
+# affect the distance, i.e., if we knew that the longitude of the boundary
+# doesn't change within the sample (therefore would not be a problem,
+# because there would be not much variation in the distance)
 
 # ----------------
 # ---- c) -------
 # ----------------
 
-# Partial replication of Columns 1, 3 and 5 of Table 2 under the proxy-longitude setting
-res_c <- bind_rows(
-  fuzzy_rd_fe(df2, "vote_comb_ind") |> mutate(sample = "All regions"),
-  fuzzy_rd_fe(filter(df2, region2 == "East"), "vote_comb_ind") |> mutate(sample = "Southeast region"),
-  fuzzy_rd_fe(filter(df2, region2 == "North"), "vote_comb_ind") |> mutate(sample = "Northwest region"),
-  fuzzy_rd_fe(df2, "vote_comb") |> mutate(sample = "All regions"),
-  fuzzy_rd_fe(filter(df2, region2 == "East"), "vote_comb") |> mutate(sample = "Southeast region"),
-  fuzzy_rd_fe(filter(df2, region2 == "North"), "vote_comb") |> mutate(sample = "Northwest region")
+
+# Defining the outcomes, getting the optimal bandwidth and then estimating
+# the RDDs as regressions with fixed effects as specified by the author
+# (but fuzzy instead of sharp)
+
+outcomes <- c("comb_ind", "comb")
+
+# Function to get optimal bandwidth
+get_bw <- function(y, data) {
+  bw <- rdbwselect(
+    y = data[[paste0("vote_", y)]],
+    x = data$temp,
+    cluster = data$segment50
+  )
+  as.numeric(bw$bws[1, 1])
+}
+
+hopt <- list()
+means <- list()
+
+# Getting the optimal bandwith
+for (v in outcomes) {
+  d_all <- df2 |> filter(ind_seg50 == 1)
+
+  hopt[[v]] <- get_bw(v, d_all)
+
+  for (r in 1:2) {
+    hopt[[paste0(v, "_", r)]] <- get_bw(
+      v,
+      d_all |> filter(region2 == r)
+    )
+  }
+
+  means[[v]] <- df2 |>
+    filter(cov == 0, ind_seg50 == 1, dist <= hopt[[v]]) |>
+    summarise(m = mean(.data[[paste0("vote_", v)]], na.rm = TRUE)) |>
+    pull(m)
+
+  for (r in 1:2) {
+    means[[paste0(v, "_", r)]] <- df2 |>
+      filter(
+        cov == 0,
+        ind_seg50 == 1,
+        region2 == r,
+        abs(temp) <= hopt[[paste0(v, "_", r)]]
+      ) |>
+      summarise(m = mean(.data[[paste0("vote_", v)]], na.rm = TRUE)) |>
+      pull(m)
+  }
+}
+
+
+# Making the table
+star_code <- function(p_value) {
+  case_when(
+    p_value < 0.01 ~ "***",
+    p_value < 0.05 ~ "**",
+    p_value < 0.10 ~ "*",
+    TRUE ~ ""
+  )
+}
+
+# Since the rdd is fuzzy, we have to run it with an iv approach
+
+fuzzy_iv_results <- list()
+
+fit_fuzzy_iv <- function(sample_data, outcome, bandwidth) {
+  yvar <- paste0("vote_", outcome)
+  d <- sample_data |>
+    filter(
+      .data$ind_seg50 == 1,
+      abs(.data$temp) <= bandwidth,
+      !is.na(.data[[yvar]]),
+      !is.na(.data$cov),
+      !is.na(.data$temp),
+      !is.na(.data$segment50)
+    )
+
+  feols(
+    as.formula(paste0(yvar, " ~ 1 | segment50 | cov ~ temp")),
+    data = d,
+    cluster = ~segment50
+  )
+}
+
+for (v in outcomes) {
+  fuzzy_iv_results[[paste0("iv_all_", v)]] <- fit_fuzzy_iv(
+    sample_data = df2,
+    outcome = v,
+    bandwidth = hopt[[v]]
+  )
+
+  fuzzy_iv_results[[paste0("iv_region1_", v)]] <- fit_fuzzy_iv(
+    sample_data = df2 |> filter(region2 == 1),
+    outcome = v,
+    bandwidth = hopt[[paste0(v, "_1")]]
+  )
+
+  fuzzy_iv_results[[paste0("iv_region2_", v)]] <- fit_fuzzy_iv(
+    sample_data = df2 |> filter(region2 == 2),
+    outcome = v,
+    bandwidth = hopt[[paste0(v, "_2")]]
+  )
+}
+
+iv_cell <- function(model) {
+  ct <- coeftable(model)
+  estimate <- ct["fit_cov", "Estimate"]
+  se <- ct["fit_cov", "Std. Error"]
+  p_value <- ct["fit_cov", "Pr(>|t|)"]
+
+  paste0(
+    sprintf("%.3f", estimate),
+    star_code(p_value),
+    " (",
+    sprintf("%.3f", se),
+    ")"
+  )
+}
+
+fuzzy_iv_table <- tibble(
+  variable = c("Indicator", "Vote Share"),
+  `All regions` = c(
+    iv_cell(fuzzy_iv_results[["iv_all_comb_ind"]]),
+    iv_cell(fuzzy_iv_results[["iv_all_comb"]])
+  ),
+  `Region 1` = c(
+    iv_cell(fuzzy_iv_results[["iv_region1_comb_ind"]]),
+    iv_cell(fuzzy_iv_results[["iv_region1_comb"]])
+  ),
+  `Region 2` = c(
+    iv_cell(fuzzy_iv_results[["iv_region2_comb_ind"]]),
+    iv_cell(fuzzy_iv_results[["iv_region2_comb"]])
+  )
 )
 
-table_2_proxy <- res_c |>
-  mutate(
-    outcome = recode(
-      outcome,
-      vote_comb_ind = "At least one station with Category C fraud",
-      vote_comb = "Share of votes under Category C fraud"
-    ),
-    point_estimate = round(point_estimate, 4)
-  ) |>
-  select(outcome, sample, point_estimate) |>
-  pivot_wider(names_from = sample, values_from = point_estimate)
+print(fuzzy_iv_table)
 
-print(table_2_proxy)
-
-openxlsx::write.xlsx(
-  table_2_proxy,
-  "pset_3_ex2_c_table2_proxy_point_estimates.xlsx",
-  rowNames = FALSE,
-  overwrite = TRUE
+fuzzy_iv_latex <- c(
+  "\\begin{tabular}{lccc}",
+  "\\hline\\hline",
+  "Variable & All regions & Region 1 & Region 2 \\\\",
+  "\\hline",
+  paste0(
+    fuzzy_iv_table$variable,
+    " & ",
+    fuzzy_iv_table$`All regions`,
+    " & ",
+    fuzzy_iv_table$`Region 1`,
+    " & ",
+    fuzzy_iv_table$`Region 2`,
+    " \\\\"
+  ),
+  "\\hline",
+  "\\multicolumn{4}{l}{\\footnotesize IV estimates: cov instrumented by \_dist} \\\\",
+  "\\multicolumn{4}{l}{\\footnotesize Segment50 fixed effects included; clustered standard errors by segment50 in parentheses.} \\\\",
+  "\\multicolumn{4}{l}{\\footnotesize * p $<$ 0.10, ** p $<$ 0.05, *** p $<$ 0.01.} \\\\",
+  "\\hline\\hline",
+  "\\end{tabular}"
 )
-# Comment:
-# Read these as fuzzy-RD local effects of actual coverage for centers whose treatment
-# status changes at the proxy-based cutoff. Relative to the sharp design, longitude
-# measurement error weakens the first stage, so the estimates can be noisier and may
-# differ from the original Table 2 magnitudes.
+
+writeLines(fuzzy_iv_latex, "output/results_fuzzy_iv_dist.tex")
+# Answer:
+# TODO: WRITE THIS: 
+# Under the assumption of local monotonicity (needed for the IV interpretation),
+# we get that this IV should identify the LATE for people at the boundary.
+# However, this identification could be compromised due to possible measurement
+# error (since _dist variable here is a proxy).
+# The interpretation of that effect would be the effect of 2G coverage on
+# election fraud. From the generated table, one can see that the estimates
+# are generally smaller than the original estimates. "All regions" become 
+# more negative with only the Indicator coefficients being significant.
+# For "Region 1", Indicator coefficient shrinks towards 0, while the
+# Vote share coef becomes more negative. Finally, the "Region 2" coefficients 
+# also become more negative. while both were already close to 0, the Idicator 
+# coefficient becomes negative, while the Vote share shrinks to 0.001
+# Generally, it should be noted that the coefficients become less significant
+# and the Southeast region is still driving those results.
+
