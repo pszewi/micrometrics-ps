@@ -161,6 +161,7 @@ Histogram <- function() {
     col = "red",
     breaks = 10, add = TRUE
   )
+  abline(v = 0, col = "black", lwd = 1.5, lty = 2)
 }
 Histogram()
 
@@ -170,6 +171,7 @@ p_density <- rdplotdensity(rdd = rdd_d, X = df1$X)$Estplot
 
 p_density_2 <- {
   p_density +
+    geom_vline(xintercept = 0, linetype = "dashed", size = 0.5, color = "black") +
     labs(
       title = "Density of running variable",
       x = "Score (centered at cutoff)",
@@ -245,7 +247,7 @@ dev.off()
 exe1g <- rdplot(
   y = df1$Y, x = df1$X, x.label = "Running variable",
   y.label = "Outcome",
-  nbins = 40,
+  nbins = c(20, 20),
   kernel = "triangular",
 )
 ggsave("output/exe1g.png", exe1g$rdplot)
