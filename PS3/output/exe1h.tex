@@ -1,7 +1,7 @@
 \begin{table}
 \centering
 \begin{talltblr}[         %% tabularray outer open
-entry=none,label=none,
+caption={Exercise 1h},
 note{}={* p \num{< 0.1}, ** p \num{< 0.05}, *** p \num{< 0.01}},
 ]                     %% tabularray outer close
 {                     %% tabularray inner open
@@ -13,14 +13,14 @@ hline{10}={1-3}{solid, black, 0.08em},
 column{2-3}={}{halign=c},
 column{1}={}{halign=l},
 }                     %% tabularray inner close
-& Indicator & Vote Share \\
-Robust & \num{-0.058} & \num{-0.071}* \\
-& (\num{0.052}) & (\num{0.043}) \\
-Observations & \num{2039} & \num{2039} \\
-Effective observations & \num{1099} & \num{1145} \\
-Bandwidth left & \num{0.008} & \num{0.009} \\
-Bandwidth right & \num{0.008} & \num{0.009} \\
-Kernel & Triangular & Triangular \\
+& Triangular & Uniform \\
+Conventional & \num{3.020}** & \num{3.202}** \\
+& (\num{1.427}) & (\num{1.357}) \\
+Observations & \num{2629} & \num{2629} \\
+Effective observations & \num{795} & \num{725} \\
+Bandwidth left & \num{17.240} & \num{15.449} \\
+Bandwidth right & \num{17.240} & \num{15.449} \\
+Kernel & Triangular & Uniform \\
 Bandwidth selector & mserd & mserd \\
 \end{talltblr}
 \end{table}

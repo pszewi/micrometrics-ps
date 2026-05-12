@@ -35,9 +35,9 @@ cran_packages <- c(
   "dplyr", "stargazer", "tidyr", "sandwich",
   "lmtest", "openxlsx", "grf",
   "ggplot2", "modelsummary", "rdrobust",
-  "rddensity", "lpdensity", "patchwork", 
+  "rddensity", "lpdensity", "patchwork",
   "cowplot", "gridGraphics",
-	"haven", "fixest", "stargazer"
+  "haven", "fixest", "stargazer"
 )
 
 for (pkg in cran_packages) {
@@ -63,10 +63,12 @@ set.seed("12345")
 df1 <- read.csv("stata_files/pset_3.csv", sep = ";")
 
 # ---- a) -------
-rdplot(
+exe1a <- rdplot(
   y = df1$T, x = df1$X, x.label = "Running variable",
   y.label = "Treatment Variable"
 )
+exe1a
+ggsave("output/exe1a.png", exe1a$rdplot)
 
 
 # Clearly seems sharp, as there are only 2 bins, one below cutoff
@@ -83,7 +85,7 @@ covariates <- c(
 results_b <- sapply(covariates, function(var) {
   est <- rdrobust(y = df1[[var]], x = df1$X)
   c(
-    band = round(est$bws[1, 1],3),
+    band = round(est$bws[1, 1], 3),
     tau = round(est$coef[1], 3),
     pval = round(est$pv[1], 3),
     obsnum = sum(est$N_h[1], est$N_h[2])
@@ -104,19 +106,22 @@ hs <- createStyle(
   textDecoration = "BOLD", fontName = "Arial Narrow"
 )
 
-stargazer(table_1, type="latex", out='output/Table_1.tex')
+stargazer(table_1,
+  type = "latex", out = "output/Table_1.tex",
+  title = "Exercise 1b (table)"
+)
 
 # ---- c) -------
 titles <- c(
   hischshr1520m = "Male High School Share(15–20)",
-  i89           = "Islamic Mayor 1989",
+  i89 = "Islamic Mayor 1989",
   vshr_islam1994 = "Islamic Vote Share(1994)",
-  partycount    = "# of Parties Receiving votes (1994)",
-  lpop1994      = "Log Population (1994)",
-  merkezi       = "District Center",
-  merkezp       = "Province Center",
-  subbuyuk      = "Sub-Metro Center",
-  buyuk         = "Metro Center"
+  partycount = "# of Parties Receiving votes (1994)",
+  lpop1994 = "Log Population (1994)",
+  merkezi = "District Center",
+  merkezp = "Province Center",
+  subbuyuk = "Sub-Metro Center",
+  buyuk = "Metro Center"
 )
 
 plots <- lapply(covariates, function(v) {
@@ -131,8 +136,8 @@ wrap_plots(plots, ncol = 3)
 plots2 <- wrap_plots(plots, ncol = 3)
 
 
-dpi = 150
-png(filename = "output/Graph_1.png", width= (650 * (dpi/72)), height= (450 * (dpi/72)), res = dpi, bg = "white")
+dpi <- 150
+png(filename = "output/Graph_1.png", width = (650 * (dpi / 72)), height = (450 * (dpi / 72)), res = dpi, bg = "white")
 plots2
 dev.off()
 
@@ -146,15 +151,16 @@ h_r <- band$bws[1]
 
 Histogram <- function() {
   hist(df1$X[df1$X >= h_l & df1$X < 0],
-     col = "blue",
-     breaks = 10, xlim = c(-30, 30),
-     main = "Histogram around cutoff",
-     xlab = "Islamic vote margin in 1994 ",
-     ylab = "Frequency"
-)
-hist(df1$X[df1$X >= 0 & df1$X <= h_r], 
-     col = "red", 
-     breaks = 10, add = TRUE)
+    col = "blue",
+    breaks = 10, xlim = c(-30, 30),
+    main = "Histogram around cutoff",
+    xlab = "Islamic vote margin in 1994 ",
+    ylab = "Frequency"
+  )
+  hist(df1$X[df1$X >= 0 & df1$X <= h_r],
+    col = "red",
+    breaks = 10, add = TRUE
+  )
 }
 Histogram()
 
@@ -162,20 +168,24 @@ Histogram()
 rdd_d <- rddensity(X = df1$X)
 p_density <- rdplotdensity(rdd = rdd_d, X = df1$X)$Estplot
 
-p_density_2 <- {p_density +
-  labs(title = "Density of running variable",
-       x = "Score (centered at cutoff)",
-       y = "Density")}
+p_density_2 <- {
+  p_density +
+    labs(
+      title = "Density of running variable",
+      x = "Score (centered at cutoff)",
+      y = "Density"
+    )
+}
 p_density_2
 
 plots_1d <- plot_grid(
-  ~Histogram(), 
+  ~ Histogram(),
   p_density_2,
   ncol = 2
 )
 
-dpi = 150
-png(filename = "output/Graph_2.png", width= (650 * (dpi/72)), height= (450 * (dpi/72)), res = dpi, bg = "white")
+dpi <- 150
+png(filename = "output/Graph_2.png", width = (650 * (dpi / 72)), height = (450 * (dpi / 72)), res = dpi, bg = "white")
 plots_1d
 dev.off()
 
@@ -189,12 +199,13 @@ t(disc_test)
 
 
 table_Q1e <- t(disc_test)
-stargazer(table_Q1e, type='latex', out='output/Table_Q1e.tex')
+stargazer(table_Q1e, type = "latex", out = "output/Table_Q1e.tex",
+					title="Exercise 1e")
 
 
-# Rddensity tests whether there exists a discontinuity in the running variable. 
-# Here, the test fails to reject the null of continuity in the running variable’s 
-# density at the cutoff (p = 0.163), indicating no evidence of manipulation. 
+# Rddensity tests whether there exists a discontinuity in the running variable.
+# Here, the test fails to reject the null of continuity in the running variable’s
+# density at the cutoff (p = 0.163), indicating no evidence of manipulation.
 # This supports the validity of the RD design, as it does not provide any evidence
 # of manipulation of the running variable around the cutoff.
 
@@ -217,8 +228,8 @@ plot_Q1f <- ggplot(placebo_df, aes(x = cutoff, y = tau)) +
   theme_minimal()
 plot_Q1f
 
-dpi = 150
-png(filename = "output/Graph_Q1f.png", width= (650 * (dpi/72)), height= (450 * (dpi/72)), res = dpi, bg = "white")
+dpi <- 150
+png(filename = "output/Graph_Q1f.png", width = (650 * (dpi / 72)), height = (450 * (dpi / 72)), res = dpi, bg = "white")
 plot_Q1f
 dev.off()
 
@@ -227,44 +238,35 @@ dev.off()
 # which is zero. At other cutoffs (-10, -5, 5, and 10) the estimated treatment
 # effect should be close to zero and not statistically significant. In the plot made
 # by the code above, it is clear that none of these 4 placebo cutoffs are statistically
-# different from zero, and thus we do not find evidence of discontinuities at 
+# different from zero, and thus we do not find evidence of discontinuities at
 # alternative cutoffs.
 
 # ---- g) -------
-rdplot(
+exe1g <- rdplot(
   y = df1$Y, x = df1$X, x.label = "Running variable",
   y.label = "Outcome",
   nbins = 40,
+  kernel = "triangular",
 )
-
-rdplot(
-  y = df1$Y, x = df1$X, x.label = "Running variable",
-  y.label = "Outcome",
-  nbins = 40,
-	kernel="triangular",
-)
+ggsave("output/exe1g.png", exe1g$rdplot)
 
 
 # ---- h) -------
-# TODO: for now I'm running that on X but it says that we should run it on T,
-# but T is not continuous - it's a dummy
-
 # Triangular kernel is the default
 # It gives more weight to observations close to the cutoff
 # and less weight to observations close to the boundary
-summary(rdrobust(y = df1$Y, x = df1$X, all=TRUE
+summary(rdrobust(y = df1$Y, x = df1$X, all = TRUE))
 
 # Answer: We can see that with the triangular kernel,
-# the effect is only significant at the 10% level, but not other conventional
-# significance levels. 
+# the effect is significant at the 0.05 significance level.
 
 # Uniform kernel that treats every observation with the same weight
-summary(rdrobust(y = df1$Y, x = df1$X, kernel = "uniform", all=TRUE))
+summary(rdrobust(y = df1$Y, x = df1$X, kernel = "uniform", all = TRUE))
 
 # With the uniform kernel, we get that the effect is significant at the 5%
 # level as well.
 
-# Generally the results differ, because of the kernel choice. The kernel 
+# Generally the results differ, because of the kernel choice. The kernel
 # defines in what way the observations are weighted in relation to their
 # distance from the cutoff. With the uniform kernel, we have that the
 # observations are weighted in the same way, while the triangular kernel
@@ -273,7 +275,25 @@ summary(rdrobust(y = df1$Y, x = df1$X, kernel = "uniform", all=TRUE))
 # away from the cutoff that have more extreme values, therefore making
 # the solution more significant.
 
+# export
+models_1h <- list(
+  Triangular = rdrobust(y = df1$Y, x = df1$X, all = TRUE),
+  Uniform = rdrobust(y = df1$Y, x = df1$X, kernel = "uniform", all = TRUE)
+)
+
+rdrobust_modelsummary(
+  models_1h,
+  estimate_types = "Conventional",
+  output = "output/exe1h.tex",
+	title = "Exercise 1h"
+)
+
+
+# saving the optimal bandwidth
+opt_i <- rdbwselect(y = df1$Y, x = df1$X)$bws[1, 1]
+
 # ---- i) -------
+
 
 # Btw this is already the centered version because our cutoff is 0!
 df1$X2 <- df1$X^2
@@ -284,22 +304,43 @@ df1$XT2 <- df1$T * df1$X2
 df1$XT3 <- df1$T * df1$X3
 df1$XT4 <- df1$T * df1$X4
 
-summary(lm(Y ~ T + X + X2 + X3 + X4 + XT + XT2 + XT3 + XT4, data = df1))
+exe1i <- lm(Y ~ T + X + X2 + X3 + X4 + XT + XT2 + XT3 + XT4, data = df1)
+summary(exe1i)
 
+stargazer(exe1i, out="output/exe1i.tex", type="latex", title = "Exercise 1i")
 
 # ---- j) -------
 
-opt_i <- rdbwselect(y = df1$Y, x = df1$X)$bws[1, 1]
+# implementing the weights for the triangular kernel
+df1 <- df1 |>
+	mutate(
+		wght = ifelse(abs((X/opt_i)) <= 1, 1 - abs((X/opt_i)), 0)
+	)
 
 subsample <- df1 |> filter((X < opt_i) & (X > -opt_i))
 
-summary(lm("Y~X+T", data = subsample))
+exe1j_u <- lm(" Y ~ X + T + as.factor(T):X", data = subsample)
+summary(exe1j_u)
+exe1j_k <- lm(" Y ~ X + T + as.factor(T):X", data = subsample, weights=wght)
+summary(exe1j_k)
+
+stargazer(exe1j_u, exe1j_k, out="output/exe1j.tex", type="latex", title = "Exercise 1j")
+
+# Answer: 
+# exe1j_u essentiall estimates an unweighted uniform kernel regression
+# since we have that all observations have equal weight, but that weight
+# is 1. Therefore, the value of the coefficient differs from the value off
+# the value of the coefficient in h). 
+# exe1j_k essentially estimates the triangular kernel regression and  
+# thus returns the same value as 
+# summary(rdrobust(y = df1$Y, x = df1$X, all = TRUE))
+
 
 # ---- k) -------
 
 bnds <- seq(0.5, 1.5, by = 0.25)
 
-results_j_trian <- lapply(bnds, function(var) {
+results_k_trian <- lapply(bnds, function(var) {
   bndwdth <- var * opt_i
   est <- rdrobust(y = df1$Y, x = df1$X, h = c(bndwdth, bndwdth))
   ci <- est$ci
@@ -309,9 +350,9 @@ results_j_trian <- lapply(bnds, function(var) {
   )
 })
 
-results_j_trian
+results_k_trian
 
-results_j_unif <- lapply(bnds, function(var) {
+results_k_unif <- lapply(bnds, function(var) {
   bndwdth <- var * opt_i
   est <- rdrobust(
     y = df1$Y, x = df1$X,
@@ -324,7 +365,7 @@ results_j_unif <- lapply(bnds, function(var) {
   )
 })
 
-results_j_unif
+results_k_unif
 
 
 to_df <- function(res, kernel_name) {
@@ -336,8 +377,8 @@ to_df <- function(res, kernel_name) {
 }
 
 plot_df <- bind_rows(
-  to_df(results_j_trian, "Triangular"),
-  to_df(results_j_unif, "Uniform")
+  to_df(results_k_trian, "Triangular"),
+  to_df(results_k_unif, "Uniform")
 )
 
 # lock the row order so triangular sits on top
@@ -349,7 +390,7 @@ plot_df$kernel <- factor(plot_df$kernel, levels = c(
 ggplot(plot_df, aes(x = mult, y = tau)) +
   geom_hline(yintercept = 0, linetype = "dashed", colour = "grey50") +
   geom_pointrange(aes(ymin = ci_low, ymax = ci_high)) +
-  facet_wrap(~kernel, ncol = 1) + 
+  facet_wrap(~kernel, ncol = 1) +
   labs(
     x = "Bandwidth multiplier (× opt_i)",
     y = expression(hat(tau)),
@@ -358,6 +399,7 @@ ggplot(plot_df, aes(x = mult, y = tau)) +
   theme_minimal()
 
 ggsave("output/graph_3.png")
+
 # We can see that as we relax the bandwidth, our results become more significant
 # This is consistent with the idea that as we relax the bandwith, our
 # observations may become less comparable, which decreases our internal
@@ -372,12 +414,11 @@ ggsave("output/graph_3.png")
 df2 <- read_dta("stata_files/fraud_pcenter_final.dta") |>
   mutate(
     dst = as.numeric(`_dist`),
-		dist = dst,
+    dist = dst,
     temp = if_else(cov == 0, -dist, dist),
-		instr = if_else(temp >= 0, 1, 0),
+    instr = if_else(temp >= 0, 1, 0),
   ) |>
   filter(conflict != 1)
-
 
 
 # ----------------
@@ -386,17 +427,17 @@ df2 <- read_dta("stata_files/fraud_pcenter_final.dta") |>
 
 # RD plot of treatment status against the proxy-based running variable
 
-exe2p1 <- rdplot(df2$cov, df2$temp,
-	kernel = "triangular",
+exe2a <- rdplot(df2$cov, df2$temp,
+  kernel = "triangular",
   x.label = "Running Variable",
   y.label = "Treatment Variable",
   title = "Treatment Variable against Proxy-Based Running Variable"
 )
 
-ggsave("output/exe2p1.png", exe2p1$rdplot)
+ggsave("output/exe2a.png", exe2a$rdplot)
 
 
-summary(rdrobust(df2$cov, df2$dist))
+summary(rdrobust(df2$cov, df2$temp))
 # the treatment rd together and export
 models <- list(
   Treatment = rdrobust(y = df2$cov, x = df2$temp)
@@ -405,7 +446,8 @@ models <- list(
 rdrobust_modelsummary(
   models,
   estimate_types = "Conventional",
-  output = "output/my_rdrobust_table.tex"
+  output = "output/exe2a_table.tex",
+	title = "Exercise 2a (table)"
 )
 
 
@@ -417,19 +459,19 @@ rdrobust_modelsummary(
 # of the proxy.
 
 # The validity of the spatial rdd relies on the classic assumptions:
-# The potential outcome functions must be continuous in the treatment boundary 
-# The probability of treatment must jump at the cutoff and there must be no 
-# manipulation around it. 
+# The potential outcome functions must be continuous in the treatment boundary
+# The probability of treatment must jump at the cutoff and there must be no
+# manipulation around it.
 # Also, for every part of the boundary (i.e. for every segment), there must
-# be at least one polling center on each side of the boundary so that we can 
-# carry out our comparison 
+# be at least one polling center on each side of the boundary so that we can
+# carry out our comparison
 
 # ----------------
 # ---- b) -------
 # ----------------
 
 # Answer:
-# Question: When does having a proxy for longitude keep the design sharp? 
+# Question: When does having a proxy for longitude keep the design sharp?
 # I guess the design will stay sharp if the error from the proxy does not
 # affect the distance, i.e., if we knew that the longitude of the boundary
 # doesn't change within the sample (therefore would not be a problem,
@@ -489,7 +531,7 @@ for (v in outcomes) {
         abs(temp) <= hopt[[paste0(v, "_", r)]]
       ) |>
       summarise(m = mean(.data[[paste0("vote_", v)]], na.rm = TRUE)) |>
-pull(m)
+      pull(m)
   }
 }
 
@@ -520,6 +562,10 @@ fit_fuzzy_iv <- function(sample_data, outcome, bandwidth) {
       !is.na(.data$segment50)
     )
 
+  # here we run the iv fuzzy regression with fixed effects, as in the paper.
+  # By including cov + cov:temp in the endog. part, and running the 2nd stage
+  # with just temp, we get that the final specification is
+  # y ~ cov_fit + temp + cov_fit:temp (i.e. correct)
   feols(
     as.formula(paste0(yvar, " ~ temp | segment50 | cov + cov:temp ~ instr + instr:temp")),
     data = d,
@@ -528,8 +574,8 @@ fit_fuzzy_iv <- function(sample_data, outcome, bandwidth) {
 }
 
 # quick test of the first and second stage for all regions
-summary(fit_fuzzy_iv(sample_data = df2, outcome = "comb_ind", bandwidth=hopt[["comb_ind"]]), stage=1)
-summary(fit_fuzzy_iv(sample_data = df2, outcome = "comb_ind", bandwidth=hopt[["comb_ind"]]), stage=2)
+summary(fit_fuzzy_iv(sample_data = df2, outcome = "comb_ind", bandwidth = hopt[["comb_ind"]]), stage = 1)
+summary(fit_fuzzy_iv(sample_data = df2, outcome = "comb_ind", bandwidth = hopt[["comb_ind"]]), stage = 2)
 
 
 # running the loop for everything
@@ -609,7 +655,8 @@ fuzzy_iv_latex <- c(
   "\\end{tabular}"
 )
 
-writeLines(fuzzy_iv_latex, "output/results_fuzzy_iv_dist.tex")
+writeLines(fuzzy_iv_latex, "output/exe2c.tex")
+
 # Answer:
 # Under the assumption of local monotonicity (needed for the IV interpretation),
 # we get that this IV should identify the LATE for people at the boundary.
@@ -617,7 +664,7 @@ writeLines(fuzzy_iv_latex, "output/results_fuzzy_iv_dist.tex")
 # error (since _dist variable here is a proxy).
 # The interpretation of that effect would be the effect of 2G coverage on
 # election fraud. From the generated table, one can see that the estimates
-# are generally smaller than the original estimates. "All regions" become 
+# are generally smaller than the original estimates. "All regions" become
 # more negative with only the Indicator coefficients being significant.
 # For "Region 1" (Southeast), both coefficients became more negative
 # For the "Region 2" (Northeast), coefficients shrunk more towards 0,
